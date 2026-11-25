@@ -1,0 +1,1441 @@
+<!-- ==========================================================
+     ไฟล์ Teacher.html : เก็บโครงสร้างไว้ใน <template> เพื่อไม่ให้แสดงผลในหน้าแรกและหน้านักเรียน 100%
+     ========================================================== -->
+<style>
+  .header-card-teacher {
+    background: linear-gradient(135deg, #1b5e20, #2e7d32);
+    color: #ffffff;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 6px 20px rgba(27, 94, 32, 0.15);
+  }
+  .criteria-card {
+    border-radius: 16px;
+    border: 2px solid #0d6efd;
+    background: #ffffff;
+  }
+  .group-review-card {
+    border-radius: 16px;
+    border: 1px solid #dee2e6;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+    background: #ffffff;
+    margin-bottom: 28px;
+  }
+  .ai-score-box {
+    background-color: #f0f7ff;
+    border: 1px solid #b6d4fe;
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .manual-score-box {
+    background-color: #fff8e6;
+    border: 1px solid #ffecb5;
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .student-content-viewer {
+    background-color: #f8faf9;
+    border: 1px solid #cfe2ff;
+    border-left: 5px solid #0d6efd;
+    border-radius: 10px;
+    padding: 14px;
+    margin-top: 10px;
+    margin-bottom: 10px;
+    font-size: 0.96rem;
+    line-height: 1.65;
+  }
+  .step8-highlight-box {
+    border: 2px solid #198754 !important;
+    background-color: #f4fbf7 !important;
+  }
+</style>
+
+<!-- พื้นที่ว่างเปล่าสำหรับวางหน้าต่างครูผู้สอน (เริ่มต้นจะว่างเปล่า 100% ไม่มีอะไรแสดงผลเลย) -->
+<div id="teacherActiveMount"></div>
+
+<!-- แม่แบบ <template> ที่เบราว์เซอร์จะไม่แสดงผลบนหน้าจอจนกว่าจะถูกเรียกใช้โดย Admin -->
+<template id="teacherDashboardTemplate">
+  <div id="teacherSectionContent" class="mt-2">
+    
+    <!-- ส่วนหัวหน้าต่างครูผู้สอน -->
+    <div class="header-card-teacher mb-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
+      <div>
+        <h5 class="fw-bold m-0">👨‍🏫 หน้าต่างสำหรับครูผู้สอน (ตรวจอนุมัติ & ประเมินคะแนน)</h5>
+        <div class="small mt-1">รายวิชา โครงงานอาชีพ รหัสวิชา ง30202 | ครูผู้สอน นายธนโชติ จันทรังษี</div>
+        <span class="badge bg-warning text-dark mt-2">✅ รองรับครบทั้ง 8 ปุ่ม (ปุ่มที่ 1 ถึง ปุ่มที่ 8 ประวัติคณะผู้จัดทำ)</span>
+      </div>
+      <div class="d-flex gap-2 flex-wrap">
+        <button type="button" class="btn btn-light btn-touch text-success shadow-sm" onclick="loadDashboard()">
+          🔄 โหลดข้อมูลล่าสุด
+        </button>
+        <button type="button" id="btnBackToAdminDash" class="btn btn-warning btn-touch text-dark shadow-sm" onclick="backFromTeacherToDashboard()">
+          ← กลับหน้า Admin
+        </button>
+        <button type="button" id="btnTeacherLogout" class="btn btn-danger btn-touch shadow-sm" onclick="handleLogout()">
+          ออกจากระบบ
+        </button>
+      </div>
+    </div>
+
+    <!-- แถบแจ้งเตือนสถานะเฉพาะหน้าครูผู้สอน -->
+    <div id="teacherAlert" class="alert hidden" role="alert"></div>
+
+    <!-- ส่วนที่ 1: กำหนดเกณฑ์การตรวจให้คะแนนด้วย AI -->
+    <div class="card criteria-card mb-3 shadow-sm">
+      <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center py-3" 
+           style="cursor: pointer;" onclick="toggleCriteriaPanel()">
+        <h6 class="fw-bold m-0">🤖 ตั้งค่าเกณฑ์การตรวจให้คะแนนด้วย AI (คลิกเพื่อเปิด/ซ่อน)</h6>
+        <span class="badge bg-light text-primary">รวม 60 คะแนน</span>
+      </div>
+      <div id="criteriaPanelBody" class="card-body hidden">
+        <p class="text-muted small mb-3">
+          กำหนดเกณฑ์การตรวจเพื่อให้ AI ใช้เป็นกรอบในการประเมินคะแนนแต่ละครั้ง (สามารถปรับแก้ได้ตลอดเวลา)
+        </p>
+
+        <div class="row g-3">
+          <div class="col-12 col-md-6">
+            <label class="form-label fw-bold text-primary">
+              1. เกณฑ์การให้คะแนนครั้งที่ 1 บทที่ 1 (การตรวจปุ่มที่ 2 - เต็ม 10 คะแนน)
+            </label>
+            <textarea id="c_criteria_1" class="form-control" rows="3"></textarea>
+          </div>
+
+          <div class="col-12 col-md-6">
+            <label class="form-label fw-bold text-primary">
+              2. เกณฑ์การให้คะแนนครั้งที่ 2 บทที่ 2 (การตรวจปุ่มที่ 3 - เต็ม 10 คะแนน)
+            </label>
+            <textarea id="c_criteria_2" class="form-control" rows="3"></textarea>
+          </div>
+
+          <div class="col-12 col-md-6">
+            <label class="form-label fw-bold text-primary">
+              3. เกณฑ์การให้คะแนนครั้งที่ 3 บทที่ 3 (การตรวจปุ่มที่ 4 - เต็ม 10 คะแนน)
+            </label>
+            <textarea id="c_criteria_3" class="form-control" rows="3"></textarea>
+          </div>
+
+          <div class="col-12 col-md-6">
+            <label class="form-label fw-bold text-primary">
+              4. เกณฑ์การให้คะแนนครั้งที่ 7 การนำเสนอโครงงาน (การตรวจปุ่มที่ 2–8 - เต็ม 30 คะแนน)
+            </label>
+            <textarea id="c_criteria_7" class="form-control" rows="3"></textarea>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label fw-semibold text-secondary">
+              🔑 รหัสเชื่อมต่อ Google Gemini API Key (เว้นว่างไว้ได้หากต้องการใช้ระบบประเมินโครงสร้างอัตโนมัติเบื้องต้น)
+            </label>
+            <input type="password" id="c_gemini_key" class="form-control" placeholder="วาง Gemini API Key ที่นี่ (ถ้ามี)">
+          </div>
+        </div>
+
+        <button type="button" id="saveCriteriaBtn" class="btn btn-primary btn-touch w-100 mt-3" onclick="submitSaveCriteria()">
+          💾 บันทึกเกณฑ์การตรวจให้คะแนน
+        </button>
+      </div>
+    </div>
+
+    <!-- ดึงหน้าต่างส่งคะแนนไปยังไฟล์ ปพ.5 จากไฟล์ ExportGrade.html เข้ามาวางตรงนี้โดยตรง -->
+    <div id="pp5ExportMountPoint">
+      <?!= include('ExportGrade'); ?>
+    </div>
+
+    <!-- ส่วนที่ 2: รายการกลุ่มโครงงานและการประเมินคะแนน (เต็ม 100 คะแนน) -->
+    <h5 class="fw-bold text-success mb-3 mt-4">📂 รายการกลุ่มโครงงานและการประเมินคะแนน (เต็ม 100 คะแนน)</h5>
+    <div id="groupsListContainer">
+      <div class="text-center py-5">กำลังโหลดข้อมูลกลุ่มโครงงานทั้งหมด...</div>
+    </div>
+
+  </div>
+</template>
+
+<script>
+  var TOTAL_TEACHER_STEPS = 8;
+
+  var TEACHER_STEP_NAMES = {
+    1: 'ปุ่มที่ 1: กำหนดชื่อโครงงานอาชีพ',
+    2: 'ปุ่มที่ 2: บทที่ 1 บทนำ',
+    3: 'ปุ่มที่ 3: บทที่ 2 เอกสารและงานที่เกี่ยวข้อง',
+    4: 'ปุ่มที่ 4: บทที่ 3 ขั้นตอนการดำเนินโครงงาน',
+    5: 'ปุ่มที่ 5: บทที่ 4 การอภิปรายผลโครงงาน',
+    6: 'ปุ่มที่ 6: บทที่ 5 สรุปผลโครงงาน',
+    7: 'ปุ่มที่ 7: บรรณานุกรม และ ภาคผนวก',
+    8: 'ปุ่มที่ 8: ประวัติคณะผู้จัดทำ'
+  };
+
+  function mountTeacherView() {
+    var mount = document.getElementById('teacherActiveMount');
+    var tpl = document.getElementById('teacherDashboardTemplate');
+    if (mount && tpl) {
+      mount.innerHTML = tpl.innerHTML;
+      loadDashboard();
+      loadSavedPp5ConfigToInputs(false);
+    }
+  }
+
+  function destroyTeacherView() {
+    var mount = document.getElementById('teacherActiveMount');
+    if (mount) {
+      mount.innerHTML = '';
+    }
+  }
+
+  window.addEventListener('DOMContentLoaded', function() {
+    var loginEl = document.getElementById('loginSection');
+    if (!loginEl) {
+      mountTeacherView();
+      var btnBack = document.getElementById('btnBackToAdminDash');
+      var btnOut = document.getElementById('btnTeacherLogout');
+      if (btnBack) btnBack.classList.add('hidden');
+      if (btnOut) btnOut.classList.add('hidden');
+    } else {
+      destroyTeacherView();
+    }
+  });
+
+  // ==========================================================
+  // ฟังก์ชันควบคุมการบันทึกตั้งค่าคอลัมน์และส่งคะแนนไป ปพ.5
+  // ==========================================================
+  function togglePp5PanelBody() {
+    var bodyEl = document.getElementById('pp5PanelBody');
+    if (bodyEl) bodyEl.classList.toggle('hidden');
+  }
+
+  function gatherPp5FormConfig() {
+    var getVal = function(id) {
+      var el = document.getElementById(id);
+      return el ? el.value.trim() : '';
+    };
+    return {
+      targetUrl: getVal('pp5TargetUrl'),
+      targetSheetName: getVal('pp5TargetSheet'),
+      studentIdCol: getVal('pp5StudentIdCol').toUpperCase(),
+      scoreCols: {
+        s1: getVal('pp5Col_s1').toUpperCase(),
+        s2: getVal('pp5Col_s2').toUpperCase(),
+        s3: getVal('pp5Col_s3').toUpperCase(),
+        s4: getVal('pp5Col_s4').toUpperCase(),
+        s5: getVal('pp5Col_s5').toUpperCase(),
+        s6: getVal('pp5Col_s6').toUpperCase(),
+        s7: getVal('pp5Col_s7').toUpperCase()
+      }
+    };
+  }
+
+  function applyPp5ConfigToForm(cfg) {
+    if (!cfg) return;
+    var elUrl = document.getElementById('pp5TargetUrl');
+    if (!elUrl) return;
+    if (cfg.targetUrl) elUrl.value = cfg.targetUrl;
+    if (cfg.targetSheetName !== undefined) document.getElementById('pp5TargetSheet').value = cfg.targetSheetName;
+    if (cfg.studentIdCol !== undefined) document.getElementById('pp5StudentIdCol').value = cfg.studentIdCol;
+    if (cfg.scoreCols) {
+      ['s1', 's2', 's3', 's4', 's5', 's6', 's7'].forEach(function(k) {
+        var colInput = document.getElementById('pp5Col_' + k);
+        if (colInput && cfg.scoreCols[k] !== undefined) {
+          colInput.value = cfg.scoreCols[k];
+        }
+      });
+    }
+  }
+
+  function loadSavedPp5ConfigToInputs(showMsg) {
+    if (typeof google === 'undefined' || !google.script || !google.script.run) return;
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if (res && res.success && res.config) {
+          applyPp5ConfigToForm(res.config);
+          if (showMsg) {
+            showPp5StatusAlert('info', '✅ โหลดการตั้งค่าคอลัมน์ที่บันทึกไว้เรียบร้อยแล้ว!');
+          }
+        } else if (showMsg) {
+          showPp5StatusAlert('warning', '⚠️ ยังไม่มีการตั้งค่าคอลัมน์ที่บันทึกไว้ในระบบ');
+        }
+      })
+      .loadPp5ExportConfig();
+  }
+
+  function fetchPp5SheetNames() {
+    var urlEl = document.getElementById('pp5TargetUrl');
+    var url = urlEl ? urlEl.value.trim() : '';
+    var btn = document.getElementById('btnFetchSheets');
+    var hintEl = document.getElementById('pp5FileTitleHint');
+    if (!url) {
+      alert('กรุณาวางลิงก์ Google Sheet ปลายทางก่อนครับ');
+      return;
+    }
+
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '⏳ กำลังดึงชีท...';
+    }
+    if (hintEl) hintEl.innerHTML = '';
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '🔍 ดึงรายชื่อชีท';
+        }
+        if (res && res.success) {
+          if (hintEl) hintEl.innerHTML = '📄 เชื่อมต่อไฟล์: ' + res.spreadsheetName + ' (พบ ' + res.sheetNames.length + ' ชีท)';
+          var dataList = document.getElementById('pp5SheetOptionsList');
+          if (dataList) {
+            dataList.innerHTML = '';
+            res.sheetNames.forEach(function(name) {
+              var opt = document.createElement('option');
+              opt.value = name;
+              dataList.appendChild(opt);
+            });
+          }
+          var sheetInput = document.getElementById('pp5TargetSheet');
+          if (res.sheetNames.length > 0 && sheetInput && !sheetInput.value) {
+            sheetInput.value = res.sheetNames[0];
+          }
+        } else {
+          alert(res ? res.message : 'ไม่สามารถดึงรายชื่อชีทได้');
+        }
+      })
+      .withFailureHandler(function(err) {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '🔍 ดึงรายชื่อชีท';
+        }
+        alert('เกิดข้อผิดพลาด: ' + err.message);
+      })
+      .getTargetSpreadsheetSheets(url);
+  }
+
+  function savePp5ConfigOnly() {
+    var cfg = gatherPp5FormConfig();
+    var btn = document.getElementById('btnSavePp5Config');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '⏳ กำลังบันทึกการตั้งค่าคอลัมน์...';
+    }
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '💾 บันทึกการตั้งค่าคอลัมน์เก็บไว้ในระบบ';
+        }
+        showPp5StatusAlert(res.success ? 'info' : 'danger', '💾 ' + res.message);
+      })
+      .withFailureHandler(function(err) {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '💾 บันทึกการตั้งค่าคอลัมน์เก็บไว้ในระบบ';
+        }
+        showPp5StatusAlert('danger', 'เกิดข้อผิดพลาด: ' + err.message);
+      })
+      .savePp5ExportConfig(cfg);
+  }
+
+  function executePp5ScoreExport() {
+    var cfg = gatherPp5FormConfig();
+    if (!cfg.targetUrl) {
+      showPp5StatusAlert('warning', '⚠️ กรุณาระบุลิงก์ของ Google Sheet ปลายทางก่อนครับ');
+      return;
+    }
+    if (!cfg.targetSheetName) {
+      showPp5StatusAlert('warning', '⚠️ กรุณาระบุชื่อชีทที่ต้องการใส่คะแนนก่อนครับ');
+      return;
+    }
+    if (!cfg.studentIdCol) {
+      showPp5StatusAlert('warning', '⚠️ กรุณาระบุคอลัมน์สำหรับตรวจสอบเลขประจำตัวนักเรียนก่อนครับ');
+      return;
+    }
+
+    var btn = document.getElementById('btnRunPp5Export');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '⏳ กำลังตรวจสอบสมาชิกกลุ่มและส่งคะแนนไป ปพ.5...';
+    }
+    showPp5StatusAlert('secondary', '⏳ กำลังประมวลผล: ตรวจสอบคะแนนจาก GroupScores ➔ ค้นหาสมาชิกในชีท Groups ➔ บันทึกลงชีท "' + cfg.targetSheetName + '"...');
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '🚀 ส่งคะแนนไปยังไฟล์ ปพ.5 ทันที';
+        }
+        if (res && res.success) {
+          var detailHtml = '<div class="fw-bold mb-1">' + res.message + '</div>';
+          if (res.matchedDetails && res.matchedDetails.length > 0) {
+            detailHtml += '<div class="small mt-2" style="max-height:180px; overflow-y:auto; background:#ffffff; padding:10px; border-radius:8px; border:1px solid #cbd5e1;">';
+            detailHtml += '<b>รายชื่อนักเรียนที่อัปเดตคะแนนสำเร็จ (' + res.matchedDetails.length + ' คน):</b><ul class="mb-0 mt-1">';
+            res.matchedDetails.forEach(function(item) {
+              var scoreStrs = Object.keys(item.scores).map(function(k) {
+                return k.toUpperCase() + '=' + item.scores[k];
+              }).join(', ');
+              detailHtml += '<li>แถวที่ ' + item.rowNumber + ' | รหัสนักเรียน: <b>' + item.studentId + '</b> (' + item.groupName + ') ➔ [' + scoreStrs + ']</li>';
+            });
+            detailHtml += '</ul></div>';
+          } else {
+            detailHtml += '<div class="small text-danger mt-1">⚠️ ไม่พบเลขประจำตัวนักเรียนที่ตรงกันในชีท "' + cfg.targetSheetName + '" คอลัมน์ ' + cfg.studentIdCol + ' (หรือกลุ่มของนักเรียนในห้องนี้ยังไม่มีคะแนนในชีท GroupScores)</div>';
+          }
+          showPp5StatusAlert('success', detailHtml);
+        } else {
+          showPp5StatusAlert('danger', res ? res.message : 'ไม่สามารถส่งคะแนนได้');
+        }
+      })
+      .withFailureHandler(function(err) {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '🚀 ส่งคะแนนไปยังไฟล์ ปพ.5 ทันที';
+        }
+        showPp5StatusAlert('danger', 'เกิดข้อผิดพลาด: ' + err.message);
+      })
+      .exportScoresToPp5(cfg);
+  }
+
+  function showPp5StatusAlert(type, htmlContent) {
+    var box = document.getElementById('pp5ExportStatusBox');
+    if (!box) return;
+    box.style.display = 'block';
+    box.className = 'mt-3 alert alert-' + type;
+    box.innerHTML = htmlContent;
+  }
+
+  // ==========================================================
+  // ฟังก์ชันหลักของระบบหน้าต่างครูผู้สอน
+  // ==========================================================
+  function showTeacherAlert(msg, type) {
+    type = type || 'success';
+    var box = document.getElementById('teacherAlert');
+    if (!box) return;
+    box.className = 'alert alert-' + type;
+    box.innerText = msg;
+    box.classList.remove('hidden');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function hideTeacherAlert() {
+    var box = document.getElementById('teacherAlert');
+    if (box) box.classList.add('hidden');
+  }
+
+  function toggleCriteriaPanel() {
+    var body = document.getElementById('criteriaPanelBody');
+    if (body) body.classList.toggle('hidden');
+  }
+
+  function buildTeacherParagraphPrefix(p) {
+    if (!p || !p.refType || p.refType === 'none') return '';
+    var authorStr = '';
+    var yearStr = '';
+    if (p.refType === 'book') {
+      var count = p.bookAuthorCount || '1';
+      var a1 = (p.bookAuthors && p.bookAuthors[0]) ? p.bookAuthors[0] : { firstName: '', lastName: '' };
+      var full1 = ((a1.firstName || '').trim() + ' ' + (a1.lastName || '').trim()).trim() || '-';
+      if (count === '1') authorStr = full1;
+      else if (count === '2') {
+        var a2 = (p.bookAuthors && p.bookAuthors[1]) ? p.bookAuthors[1] : { firstName: '', lastName: '' };
+        var full2 = ((a2.firstName || '').trim() + ' ' + (a2.lastName || '').trim()).trim() || '-';
+        authorStr = full1 + ' และ ' + full2;
+      } else authorStr = full1 + ' และคณะ';
+      yearStr = (p.bookYearType === 'no_year') ? 'ม.ป.ป.' : ((p.bookYear || '').trim() || '-');
+    } else if (p.refType === 'website') {
+      authorStr = (p.webHasAuthor === 'no') ? ((p.webArticleTitleAlt || '').trim() || '-') : (((p.webAuthorFirstName || '').trim() + ' ' + (p.webAuthorLastName || '').trim()).trim() || '-');
+      yearStr = (p.webYearType === 'no_year') ? 'ม.ป.ป.' : ((p.webYear || '').trim() || '-');
+    }
+    return authorStr + ', (' + yearStr + ')';
+  }
+
+  function buildTeacherResearchAuthor(rObj) {
+    var count = rObj.authorCount || '1';
+    var a1 = (rObj.authors && rObj.authors[0]) ? rObj.authors[0] : { firstName: '', lastName: '' };
+    var full1 = ((a1.firstName || '').trim() + ' ' + (a1.lastName || '').trim()).trim() || '-';
+    if (count === '1') return full1;
+    if (count === '2') {
+      var a2 = (rObj.authors && rObj.authors[1]) ? rObj.authors[1] : { firstName: '', lastName: '' };
+      var full2 = ((a2.firstName || '').trim() + ' ' + (a2.lastName || '').trim()).trim() || '-';
+      return full1 + ' และ ' + full2;
+    }
+    return full1 + ' และคณะ';
+  }
+
+  function buildTeacherResearchAPA7(rObj) {
+    var authorStr = buildTeacherResearchAuthor(rObj);
+    var yearStr = (rObj.yearType === 'no_year') ? 'ม.ป.ป.' : ((rObj.year || '').trim() || '-');
+    var docType = rObj.docType || 'project';
+    if (docType === 'project') {
+      return escapeHtml(authorStr) + '. (' + escapeHtml(yearStr) + '). <i>' + escapeHtml(rObj.projectTitle || '-') + '</i> [' + escapeHtml(rObj.projectLevel || '-') + ']. ' + escapeHtml(rObj.projectInstitute || '-') + '.';
+    }
+    if (docType === 'research_report') {
+      return escapeHtml(authorStr) + '. (' + escapeHtml(yearStr) + '). <i>' + escapeHtml(rObj.reportTitle || '-') + '</i> (' + escapeHtml(rObj.reportType || 'รายงานผลการวิจัย') + '). ' + escapeHtml(rObj.reportAgency || '-') + '.';
+    }
+    if (docType === 'thesis') {
+      var dbPart = rObj.thesisDatabase ? (' ' + escapeHtml(rObj.thesisDatabase) + '.') : '';
+      return escapeHtml(authorStr) + '. (' + escapeHtml(yearStr) + '). <i>' + escapeHtml(rObj.thesisTitle || '-') + '</i> [' + escapeHtml(rObj.thesisDegreeType || '-') + ', ' + escapeHtml(rObj.thesisUniversity || '-') + '].' + dbPart;
+    }
+    if (docType === 'article') {
+      return escapeHtml(authorStr) + '. (' + escapeHtml(yearStr) + '). ' + escapeHtml(rObj.articleTitle || '-') + '. ใน <i>' + escapeHtml(rObj.articleReportName || '-') + '</i> (น. ' + escapeHtml(rObj.articlePageStart || '-') + '–' + escapeHtml(rObj.articlePageEnd || '-') + '). ' + escapeHtml(rObj.articlePublisher || '-') + '.';
+    }
+    return '';
+  }
+
+  function formatStepContentForTeacher(stepNum, data, projectTitle) {
+    if (!data || Object.keys(data).length === 0) {
+      return '<div class="text-muted fst-italic">ยังไม่มีข้อมูลที่บันทึกในขั้นตอนนี้</div>';
+    }
+
+    if (stepNum === 1) {
+      var advisors = (data.advisors && data.advisors.length > 0) ? data.advisors.join(', ') : '-';
+      return '<div><strong>1) ชื่อโครงงานอาชีพ:</strong> <span class="text-primary fw-bold">' + escapeHtml(data.projectTitle || '-') + '</span></div>' +
+             '<div class="mt-1"><strong>2) ที่ปรึกษาโครงงาน:</strong> ' + escapeHtml(advisors) + '</div>';
+    }
+
+    if (stepNum === 2) {
+      var objs = (data.objectives && data.objectives.length > 0) 
+        ? data.objectives.map(function(o, i) { return '<div>' + (i + 1) + '. ' + escapeHtml(o) + '</div>'; }).join('') : '-';
+      var bens = (data.benefits && data.benefits.length > 0) 
+        ? data.benefits.map(function(b, i) { return '<div>' + (i + 1) + '. ' + escapeHtml(b) + '</div>'; }).join('') : '-';
+      return '<div class="mb-2"><strong>1) ที่มาและความสำคัญของโครงงาน:</strong><br><div class="ps-2 border-start border-2 mt-1" style="white-space: pre-wrap;">' + escapeHtml(data.background || '-') + '</div></div>' +
+             '<div class="mb-2"><strong>2) วัตถุประสงค์ของโครงงาน:</strong><div class="ps-3">' + objs + '</div></div>' +
+             '<div class="mb-2"><strong>3) ขอบเขตของโครงงาน:</strong>' +
+               '<ul class="mb-1">' +
+                 '<li><strong>3.1 ด้านผลิตภัณฑ์:</strong> ' + escapeHtml(data.scopeProduct || '-') + '</li>' +
+                 '<li><strong>3.2 ด้านการผลิต:</strong> ' + escapeHtml(data.scopeProduction || '-') + '</li>' +
+                 '<li><strong>3.3 ด้านการตลาดและกลุ่มเป้าหมาย:</strong> ' + escapeHtml(data.scopeMarket || '-') + '</li>' +
+                 '<li><strong>3.4 ด้านระยะเวลา:</strong> ' + escapeHtml(data.scopeTime || '-') + '</li>' +
+               '</ul>' +
+             '</div>' +
+             '<div><strong>4) ประโยชน์ที่คาดว่าจะได้รับ:</strong><div class="ps-3">' + bens + '</div></div>';
+    }
+
+    if (stepNum === 3) {
+      var theories = data.theories || [];
+      var researches = data.researches || [];
+
+      var thHtml = theories.map(function(th, idx) {
+        var pHtml = (th.paragraphs || []).map(function(p, pIdx) {
+          var prefix = buildTeacherParagraphPrefix(p);
+          var prefixSpan = prefix ? ('<strong class="text-primary">' + escapeHtml(prefix) + '</strong> ') : '';
+          return '<div class="mb-2 ps-2 border-start border-primary border-2"><em>ย่อหน้าที่ ' + (pIdx + 1) + ':</em> ' + prefixSpan + escapeHtml(p.text || '-') + '</div>';
+        }).join('');
+        return '<div class="p-2 mb-2 bg-white rounded border">' +
+                 '<div class="fw-bold text-success">สาระสำคัญที่ ' + (idx + 1) + ': ' + escapeHtml(th.topic || '-') + '</div>' +
+                 '<div class="mt-1">' + pHtml + '</div>' +
+                 '<div class="small text-secondary mt-1"><strong>สรุปเนื้อหา:</strong> ' + escapeHtml(th.summary || '-') + '</div>' +
+               '</div>';
+      }).join('');
+
+      var resHtml = researches.map(function(r, rIdx) {
+        var authorStr = buildTeacherResearchAuthor(r);
+        var yearStr = (r.yearType === 'no_year') ? 'ม.ป.ป.' : ((r.year || '').trim() || '-');
+        var prefix = authorStr + ', (' + yearStr + ')';
+        var apa7 = buildTeacherResearchAPA7(r);
+        return '<div class="p-2 mb-2 bg-white rounded border">' +
+                 '<div class="fw-bold text-primary">งานวิจัย/โครงงานลำดับที่ ' + (rIdx + 1) + '</div>' +
+                 '<div class="mt-1"><strong>เนื้อหา (ข้อ 5):</strong> <strong class="text-primary">' + escapeHtml(prefix) + '</strong> ' + escapeHtml(r.content || '-') + '</div>' +
+                 '<div class="mt-2 p-2 rounded bg-light small"><strong>ตัวอย่างบรรณานุกรม APA 7:</strong><br>' + apa7 + '</div>' +
+               '</div>';
+      }).join('');
+
+      return '<div class="mb-3"><strong class="text-success">ส่วนที่ 1: ทฤษฎีหรือแนวคิดที่เกี่ยวข้อง</strong><div class="mt-1">' + (thHtml || '-') + '</div></div>' +
+             '<div class="mb-3"><strong class="text-primary">ส่วนที่ 2: งานวิจัยและโครงงานที่เกี่ยวข้อง</strong><div class="mt-1">' + (resHtml || '-') + '</div></div>' +
+             '<div class="p-2 bg-white rounded border"><strong class="text-success">ส่วนที่ 3: สรุป (ท้ายบทที่ 2):</strong><div class="mt-1" style="white-space: pre-wrap;">' + escapeHtml(data.overallSummary || '-') + '</div></div>';
+    }
+
+    if (stepNum === 4) {
+      var methods = (data.operationMethods || []).map(function(m, i) { return '<div>' + (i + 1) + '. ' + escapeHtml(m || '-') + '</div>'; }).join('');
+      var matType = data.materialType || 'วัตถุดิบ';
+      var mats = (data.materials || []).map(function(m, i) { return '<div>1.' + (i + 1) + ' ' + escapeHtml(m.name || '-') + ' จำนวน ' + escapeHtml(m.qty || '-') + ' ' + escapeHtml(m.unit || '') + '</div>'; }).join('');
+      var eqs = (data.equipments || []).map(function(eq, i) { return '<div>2.' + (i + 1) + ' ' + escapeHtml(eq || '-') + '</div>'; }).join('');
+      var making = (data.makingSteps || []).map(function(s, i) { return '<div>3.' + (i + 1) + ' ' + escapeHtml(s || '-') + '</div>'; }).join('');
+
+      return '<div class="mb-3 p-2 bg-white rounded border">' +
+               '<strong class="text-success">1. วิธีการดำเนินงาน:</strong>' +
+               '<div class="small text-secondary mb-1">คณะผู้จัดทำ โครงงานอาชีพ เรื่อง <b>' + escapeHtml(projectTitle || '-') + '</b> ได้มีกระบวนการดำเนินโครงงาน ดังต่อไปนี้</div>' +
+               '<div class="ps-3">' + (methods || '-') + '</div>' +
+             '</div>' +
+             '<div class="mb-3 p-2 bg-white rounded border">' +
+               '<strong class="text-success">2. ' + escapeHtml(matType) + 'และอุปกรณ์:</strong>' +
+               '<div class="mt-1 fw-semibold">1) ' + escapeHtml(matType) + '</div>' +
+               '<div class="ps-3 mb-2">' + (mats || '-') + '</div>' +
+               '<div class="fw-semibold">2) เครื่องมือและอุปกรณ์</div>' +
+               '<div class="ps-3">' + (eqs || '-') + '</div>' +
+             '</div>' +
+             '<div class="p-2 bg-white rounded border">' +
+               '<strong class="text-success">3) ขั้นตอนการทำ:</strong>' +
+               '<div class="ps-3 mt-1">' + (making || '-') + '</div>' +
+             '</div>';
+    }
+
+    if (stepNum === 5) {
+      var workStepsHtml = (data.workSteps || []).map(function(ws, idx) {
+        var imgTag = ws.imageUrl ? ('<div class="my-2"><img src="' + escapeHtml(ws.imageUrl) + '" style="max-height: 180px; border-radius: 8px; border: 1px solid #ccc;"></div>') : '<div class="text-muted small">(ไม่มีรูปภาพ)</div>';
+        return '<div class="p-2 mb-2 bg-white border rounded text-center">' +
+                 '<div class="text-start fw-semibold">' + escapeHtml(ws.stepText || '-') + '</div>' +
+                 imgTag +
+                 '<div class="fw-bold text-success small">ภาพประกอบที่ ' + (idx + 1) + ' ' + escapeHtml(ws.captionText || '-') + '</div>' +
+               '</div>';
+      }).join('');
+
+      var costRowsHtml = (data.costItems || []).map(function(c, idx) {
+        return '<tr>' +
+                 '<td>' + (idx + 1) + '. ' + escapeHtml(c.name || '-') + '</td>' +
+                 '<td class="text-center">' + escapeHtml(c.usedQty || '-') + ' ' + escapeHtml(c.usedUnit || '') + '</td>' +
+                 '<td class="text-center">' + escapeHtml(c.unitPrice || '-') + ' บาท / ' + escapeHtml(c.priceUnit || '') + '</td>' +
+                 '<td class="text-end fw-bold">' + escapeHtml(c.calculatedCost || 0) + ' บาท</td>' +
+               '</tr>';
+      }).join('');
+
+      return '<div class="mb-3"><strong class="text-success">1. ขั้นตอนการดำเนินงานตามขั้นตอนการทำงาน:</strong><div class="mt-2">' + (workStepsHtml || '-') + '</div></div>' +
+             '<div class="mb-3"><strong class="text-success">2. ตารางการคำนวณต้นทุน:</strong>' +
+               '<div class="table-responsive mt-1">' +
+                 '<table class="table table-sm table-bordered bg-white mb-0">' +
+                   '<thead class="table-light text-center"><tr><th>1) รายการ</th><th>2) ปริมาณที่ใช้</th><th>3) ราคาต่อหน่วยที่ซื้อ</th><th>4) ราคาที่ใช้ไป (บาท)</th></tr></thead>' +
+                   '<tbody>' + costRowsHtml + '</tbody>' +
+                   '<tfoot><tr class="table-success fw-bold"><td colspan="3" class="text-end">รวมเงินทั้งสิ้น</td><td class="text-end">' + escapeHtml(data.totalCost || 0) + ' บาท</td></tr></tfoot>' +
+                 '</table>' +
+               '</div>' +
+             '</div>' +
+             '<div class="p-2 bg-white rounded border">' +
+               '<strong class="text-success">3. การคำนวณการจัดจำหน่าย:</strong>' +
+               '<ul class="mb-0 mt-1">' +
+                 '<li><strong>1) ราคาต้นทุนทั้งหมด:</strong> ' + escapeHtml(data.totalCost || 0) + ' บาท</li>' +
+                 '<li><strong>2) จำนวนที่ได้จากการจัดทำ:</strong> ' + escapeHtml(data.unitsProduced || '-') + ' ชิ้น/กล่อง</li>' +
+                 '<li><strong>3) ราคาต่อชิ้น:</strong> ' + escapeHtml(data.costPerUnit || 0) + ' บาท</li>' +
+                 '<li><strong>4) ราคาที่จัดจำหน่าย:</strong> ' + escapeHtml(data.sellingPrice || '-') + ' บาท</li>' +
+                 '<li><strong>5) กำไรต่อชิ้น:</strong> ' + escapeHtml(data.profitPerUnit || 0) + ' บาท</li>' +
+                 '<li><strong class="text-primary">6) กำไรที่ได้จากการจัดทำในครั้งนี้:</strong> <b class="text-success">' + escapeHtml(data.totalProfit || 0) + ' บาท</b></li>' +
+               '</ul>' +
+             '</div>';
+    }
+
+    if (stepNum === 6) {
+      var objResHtml = (data.objectiveResults || []).map(function(item, idx) {
+        return '<div class="mb-2">' +
+                 '<div class="fw-bold text-success">' + (idx + 1) + '. ' + escapeHtml(item.objectiveText || '-') + '</div>' +
+                 '<div class="ps-3" style="white-space: pre-wrap;">' + escapeHtml(item.resultParagraph || '-') + '</div>' +
+               '</div>';
+      }).join('');
+
+      var probsHtml = (data.problems || []).map(function(p, idx) { return '<div>' + (idx + 1) + '. ' + escapeHtml(p || '-') + '</div>'; }).join('');
+      var sugsHtml = (data.suggestions || []).map(function(s, idx) { return '<div>' + (idx + 1) + '. ' + escapeHtml(s || '-') + '</div>'; }).join('');
+
+      return '<div class="mb-2 small text-secondary fw-semibold">คณะผู้จัดทำ โครงงานอาชีพ เรื่อง <b>' + escapeHtml(projectTitle || '-') + '</b> ได้สรุปผลการดำเนินโครงงาน ได้ดังนี้</div>' +
+             '<div class="mb-3 p-2 bg-white rounded border">' +
+               '<strong class="text-success">1) ผลการดำเนินงานตามวัตถุประสงค์:</strong>' +
+               '<div class="small text-secondary mb-2">คณะผู้จัดทำโครงงานอาชีพ เรื่อง <b>' + escapeHtml(projectTitle || '-') + '</b> มีผลการดำเนินงานตามวัตถุประสงค์ ดังต่อไปนี้</div>' +
+               '<div class="ps-2">' + (objResHtml || '-') + '</div>' +
+             '</div>' +
+             '<div class="mb-3 p-2 bg-white rounded border">' +
+               '<strong class="text-success">2) ปัญหาและอุปสรรค:</strong>' +
+               '<div class="small text-secondary mb-1">คณะผู้จัดทำโครงงานอาชีพ เรื่อง <b>' + escapeHtml(projectTitle || '-') + '</b> ในระหว่างดำเนินโครงงาน คณะผู้จัดทำได้พบปัญหาและอุปสรรคต่อการดำเนินงาน ดังต่อไปนี้</div>' +
+               '<div class="ps-3">' + (probsHtml || '-') + '</div>' +
+             '</div>' +
+             '<div class="p-2 bg-white rounded border">' +
+               '<strong class="text-success">3) ข้อเสนอแนะ:</strong>' +
+               '<div class="small text-secondary mb-1">คณะผู้จัดทำโครงงานอาชีพ เรื่อง <b>' + escapeHtml(projectTitle || '-') + '</b> มีข้อเสนอแนะในการพัฒนา ปรับปรุง และแก้ไขจากการดำเนินโครงงานในครั้งนี้ โดยมีข้อเสนอแนะดังต่อไปนี้</div>' +
+               '<div class="ps-3">' + (sugsHtml || '-') + '</div>' +
+             '</div>';
+    }
+
+    if (stepNum === 7) {
+      var bibHtml = (data.bibliographyHtmlList || []).map(function(b) {
+        return '<div class="mb-2" style="padding-left: 2em; text-indent: -2em;">' + b + '</div>';
+      }).join('');
+
+      var appHtml = (data.appendixItems || []).map(function(item, idx) {
+        var figNo = item.figureNumber || (idx + 1);
+        var imgTag = item.imageUrl ? ('<div class="my-2"><img src="' + escapeHtml(item.imageUrl) + '" style="max-height: 180px; border-radius: 8px; border: 1px solid #ccc;"></div>') : '<div class="text-muted small">(ไม่มีรูปภาพ)</div>';
+        return '<div class="p-2 mb-2 bg-white border rounded text-center">' +
+                 imgTag +
+                 '<div class="fw-bold text-success small">ภาพประกอบที่ ' + figNo + ' ' + escapeHtml(item.captionText || '-') + '</div>' +
+               '</div>';
+      }).join('');
+
+      return '<div class="mb-3 p-3 bg-white rounded border">' +
+               '<strong class="text-success">1) บรรณานุกรม (รูปแบบ APA 7 เรียงลำดับ ก–ฮ และ A–Z):</strong>' +
+               '<div class="mt-2">' + (bibHtml || '<span class="text-muted">ยังไม่มีข้อมูลบรรณานุกรม</span>') + '</div>' +
+             '</div>' +
+             '<div class="p-2 bg-white rounded border">' +
+               '<strong class="text-success">2) ภาคผนวก:</strong>' +
+               '<div class="mt-2">' + (appHtml || '<span class="text-muted">ยังไม่มีรูปภาพภาคผนวก</span>') + '</div>' +
+             '</div>';
+    }
+
+    if (stepNum === 8) {
+      var profilesHtml = (data.memberProfiles || []).map(function(mp, idx) {
+        var addr = mp.address || {};
+        var edu = mp.education || { primary: {}, juniorHigh: {}, seniorHigh: {} };
+        var pEdu = edu.primary || {};
+        var jEdu = edu.juniorHigh || {};
+        var sEdu = edu.seniorHigh || {};
+
+        var photoTag = mp.photoUrl
+          ? ('<img src="' + escapeHtml(mp.photoUrl) + '" style="width: 95px; height: 120px; object-fit: cover; border-radius: 8px; border: 2px solid #198754;">')
+          : '<div class="text-muted small border rounded p-3 d-inline-block bg-light">ไม่มีรูปถ่าย</div>';
+
+        return '<div class="p-3 mb-2 bg-white border rounded shadow-sm">' +
+                 '<div class="d-flex gap-3 align-items-start flex-wrap">' +
+                   '<div>' + photoTag + '</div>' +
+                   '<div class="flex-grow-1">' +
+                     '<div class="fw-bold text-success fs-6">' + (idx + 1) + '. ชื่อ - นามสกุล: ' + escapeHtml(mp.fullName || '-') + '</div>' +
+                     '<div><strong>วัน เดือน ปีเกิด:</strong> ' + escapeHtml(mp.dob || '-') + '</div>' +
+                     '<div><strong>ที่อยู่:</strong> บ้านเลขที่ ' + escapeHtml(addr.houseNo || '-') + ' หมู่ที่ ' + escapeHtml(addr.moo || '-') + ' หมู่บ้าน' + escapeHtml(addr.village || '-') + ' ตำบล' + escapeHtml(addr.subDistrict || '-') + ' อำเภอ' + escapeHtml(addr.district || '-') + ' จังหวัด' + escapeHtml(addr.province || '-') + ' รหัสไปรษณีย์ ' + escapeHtml(addr.postalCode || '-') + '</div>' +
+                     '<div class="mt-1"><strong>ประวัติการศึกษา:</strong>' +
+                       '<ul class="mb-1 small">' +
+                         '<li><strong>ระดับประถมศึกษา:</strong> ' + escapeHtml(pEdu.schoolName || '-') + ' อำเภอ' + escapeHtml(pEdu.district || '-') + ' จังหวัด' + escapeHtml(pEdu.province || '-') + '</li>' +
+                         '<li><strong>ระดับมัธยมศึกษาตอนต้น:</strong> ' + escapeHtml(jEdu.schoolName || '-') + ' อำเภอ' + escapeHtml(jEdu.district || '-') + ' จังหวัด' + escapeHtml(jEdu.province || '-') + '</li>' +
+                         '<li><strong>ปัจจุบัน กำลังศึกษาอยู่ระดับมัธยมศึกษาตอนปลาย:</strong> ' + escapeHtml(sEdu.schoolName || '-') + ' อำเภอ' + escapeHtml(sEdu.district || '-') + ' จังหวัด' + escapeHtml(sEdu.province || '-') + '</li>' +
+                       '</ul>' +
+                     '</div>' +
+                     '<div><strong>เบอร์โทรศัพท์:</strong> <span class="text-primary fw-bold">' + escapeHtml(mp.phone || '-') + '</span></div>' +
+                   '</div>' +
+                 '</div>' +
+               '</div>';
+      }).join('');
+
+      return '<div>' +
+               '<strong class="text-success">ประวัติคณะผู้จัดทำ:</strong>' +
+               '<div class="mt-2">' + (profilesHtml || '<span class="text-muted">ยังไม่มีข้อมูลประวัติคณะผู้จัดทำที่บันทึกไว้</span>') + '</div>' +
+             '</div>';
+    }
+
+    return '<div style="white-space: pre-wrap;">' + escapeHtml(data.content || JSON.stringify(data, null, 2)) + '</div>';
+  }
+
+  function toggleStepContentViewer(groupId, stepNum) {
+    var viewer = document.getElementById('stepViewer_' + groupId + '_' + stepNum);
+    if (viewer) viewer.classList.toggle('hidden');
+  }
+
+  function toggleAllStepsForGroup(groupId) {
+    var viewers = document.querySelectorAll('.group-viewer-' + groupId);
+    var anyHidden = Array.from(viewers).some(function(el) { return el.classList.contains('hidden'); });
+    viewers.forEach(function(el) {
+      if (anyHidden) el.classList.remove('hidden');
+      else el.classList.add('hidden');
+    });
+  }
+
+  function loadDashboard() {
+    hideTeacherAlert();
+    var container = document.getElementById('groupsListContainer');
+    if (!container) return;
+    container.innerHTML = '<div class="text-center py-5">กำลังโหลดข้อมูลกลุ่มโครงงานและคะแนน (ปุ่มที่ 1 ถึง ปุ่มที่ 8)...</div>';
+
+    google.script.run.withSuccessHandler(function(res) {
+      if (!res.success) {
+        showTeacherAlert(res.message, 'danger');
+        return;
+      }
+      renderTeacherData(res);
+    }).withFailureHandler(function(err) {
+      showTeacherAlert('เกิดข้อผิดพลาดในการโหลดข้อมูล: ' + (err.message || err), 'danger');
+    }).getTeacherDashboardData();
+  }
+
+  function renderTeacherData(res) {
+    var c = res.criteria || {};
+    var elC1 = document.getElementById('c_criteria_1');
+    if (!elC1) return;
+
+    elC1.value = c.criteria_1 || '';
+    document.getElementById('c_criteria_2').value = c.criteria_2 || '';
+    document.getElementById('c_criteria_3').value = c.criteria_3 || '';
+    document.getElementById('c_criteria_7').value = c.criteria_7 || '';
+    document.getElementById('c_gemini_key').value = c.gemini_api_key || '';
+
+    loadSavedPp5ConfigToInputs(false);
+
+    var container = document.getElementById('groupsListContainer');
+    container.innerHTML = '';
+
+    if (!res.groups || res.groups.length === 0) {
+      container.innerHTML = '<div class="alert alert-secondary text-center">ยังไม่มีกลุ่มนักเรียนที่สร้างในระบบ</div>';
+      return;
+    }
+
+    res.groups.forEach(function(g) {
+      var sc = g.scores || {};
+      var steps = (g.progress && g.progress.steps) ? g.progress.steps : {};
+      var comments = (g.progress && g.progress.comments) ? g.progress.comments : {};
+      
+      // ตรวจสอบว่าอนุมัติครบทั้ง 8 ปุ่มหรือยัง
+      var allApproved = true;
+      for (var checkIdx = 1; checkIdx <= TOTAL_TEACHER_STEPS; checkIdx++) {
+        var stepCheck = steps[checkIdx] || { status: 'ล็อก' };
+        if (stepCheck.status !== 'อนุมัติแล้ว') {
+          allApproved = false;
+        }
+      }
+
+      // สร้างรายการปุ่มที่ 1 ถึง 8 พร้อมปุ่ม AI ตรวจรายปุ่ม (แก้ไขไม่ให้มีลูปซ้ำทับกัน)
+      var stepApprovalHtml = '';
+      for (var s = 1; s <= TOTAL_TEACHER_STEPS; s++) {
+        var st = steps[s] || { status: 'ล็อก', data: {} };
+        var badgeClass = st.status === 'อนุมัติแล้ว' ? 'bg-success' : (st.status === 'รอครูตรวจสอบ' ? 'bg-warning text-dark' : 'bg-secondary');
+        var formattedContentHtml = formatStepContentForTeacher(s, st.data, g.projectTitle);
+        var step8Highlight = (s === 8) ? 'step8-highlight-box' : 'bg-white';
+
+        stepApprovalHtml += '<div class="col-12">' +
+          '<div class="border rounded p-3 shadow-sm ' + step8Highlight + '">' +
+            '<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">' +
+              '<div class="d-flex align-items-center gap-2">' +
+                '<span class="fw-bold text-dark">' + TEACHER_STEP_NAMES[s] + '</span>' +
+                '<span class="badge ' + badgeClass + '">' + st.status + '</span>' +
+              '</div>' +
+              '<div class="d-flex gap-2 flex-wrap">' +
+                '<button type="button" id="btnAiStep_' + g.groupId + '_' + s + '" class="btn btn-outline-danger btn-sm fw-bold" onclick="triggerAIStepInspect(\'' + g.groupId + '\', ' + s + ')">' +
+                  '🤖 AI ตรวจปุ่มที่ ' + s +
+                '</button>' +
+                '<button type="button" class="btn btn-outline-primary btn-sm fw-bold" onclick="toggleStepContentViewer(\'' + g.groupId + '\', ' + s + ')">' +
+                  '🔍 ดูเนื้อหาที่นักเรียนส่ง' +
+                '</button>' +
+              '</div>' +
+            '</div>' +
+            '<div id="stepViewer_' + g.groupId + '_' + s + '" class="student-content-viewer group-viewer-' + g.groupId + ' hidden">' +
+              formattedContentHtml +
+            '</div>' +
+            '<div class="input-group input-group-sm mt-2">' +
+              '<input type="text" id="tComment_' + g.groupId + '_' + s + '" class="form-control" placeholder="พิมพ์ข้อเสนอแนะถึงนักเรียนสำหรับปุ่มที่ ' + s + ' (หรือกดปุ่ม 🤖 AI ตรวจปุ่มที่ ' + s + ' ด้านบน)" value="' + escapeHtml(comments[s] || '') + '">' +
+              '<button type="button" class="btn btn-success px-3 fw-bold" onclick="submitStepDecision(\'' + g.groupId + '\', ' + s + ', \'approve\')">✅ อนุมัติ</button>' +
+              '<button type="button" class="btn btn-danger px-3 fw-bold" onclick="submitStepDecision(\'' + g.groupId + '\', ' + s + ', \'reject\')">↩️ ส่งกลับแก้ไข</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      }
+
+      var aiFb = sc.aiFeedback || {};
+      var memberNames = (g.members || []).map(function(m, idx) { return (idx + 1) + '. ' + m.fullName + ' (ห้อง ' + m.room + ' เลขที่ ' + m.number + ')'; }).join(' | ');
+
+      var cardHtml = '<div class="card group-review-card overflow-hidden">' +
+        '<div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-3 flex-wrap gap-2">' +
+          '<div>' +
+            '<h5 class="fw-bold m-0">กลุ่ม: ' + escapeHtml(g.groupName) + ' (' + escapeHtml(g.groupId) + ')</h5>' +
+            '<div class="small text-light mt-1"><strong>ชื่อโครงงาน:</strong> ' + escapeHtml(g.projectTitle || '(ยังไม่ระบุ)') + '</div>' +
+            '<div class="small text-warning mt-1"><strong>สมาชิก:</strong> ' + escapeHtml(memberNames || '-') + '</div>' +
+          '</div>' +
+          '<div class="badge bg-warning text-dark fs-5 px-3 py-2">คะแนนรวม: ' + (sc.total || 0) + ' / 100 คะแนน</div>' +
+        '</div>' +
+        '<div class="card-body p-4">' +
+          '<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">' +
+            '<h6 class="fw-bold text-secondary m-0">📌 ส่วนที่ 1: เปิดดูเนื้อหาและตรวจอนุมัติการส่งงานรายปุ่ม (ครบทั้ง 8 ปุ่ม: ปุ่มที่ 1 – ปุ่มที่ 8)</h6>' +
+            '<button type="button" class="btn btn-outline-dark btn-sm fw-bold" onclick="toggleAllStepsForGroup(\'' + g.groupId + '\')">📖 เปิด / ซ่อนเนื้อหาทุกปุ่มของกลุ่มนี้</button>' +
+          '</div>' +
+          '<div class="row g-2 mb-4">' + stepApprovalHtml + '</div>' +
+          '<div class="row g-4">' +
+            '<div class="col-12 col-lg-7">' +
+              '<div class="ai-score-box h-100">' +
+                '<h6 class="fw-bold text-primary mb-3">🤖 ส่วนที่ 2: การตรวจให้คะแนนด้วย AI (รวม 60 คะแนน)</h6>' +
+                '<div class="bg-white p-3 rounded border mb-2">' +
+                  '<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">' +
+                    '<div><strong>การให้คะแนนครั้งที่ 1 บทที่ 1 (การตรวจปุ่มที่ 2)</strong>' +
+                    '<div class="text-muted small">คะแนนเต็ม 10 คะแนน | คะแนนที่ได้: <b class="text-primary fs-6">' + (sc.score1 !== '' ? sc.score1 : '-') + ' / 10</b></div></div>' +
+                    '<button type="button" class="btn btn-primary btn-touch" onclick="triggerAIGrade(\'' + g.groupId + '\', \'' + g.groupName + '\', 1)">🤖 ตรวจให้คะแนนครั้งที่ 1</button>' +
+                  '</div>' +
+                  (aiFb[1] ? ('<div class="small text-secondary mt-2 border-top pt-1" style="white-space: pre-wrap;">' + escapeHtml(aiFb[1]) + '</div>') : '') +
+                '</div>' +
+                '<div class="bg-white p-3 rounded border mb-2">' +
+                  '<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">' +
+                    '<div><strong>การให้คะแนนครั้งที่ 2 บทที่ 2 (การตรวจปุ่มที่ 3)</strong>' +
+                    '<div class="text-muted small">คะแนนเต็ม 10 คะแนน | คะแนนที่ได้: <b class="text-primary fs-6">' + (sc.score2 !== '' ? sc.score2 : '-') + ' / 10</b></div></div>' +
+                    '<button type="button" class="btn btn-primary btn-touch" onclick="triggerAIGrade(\'' + g.groupId + '\', \'' + g.groupName + '\', 2)">🤖 ตรวจให้คะแนนครั้งที่ 2</button>' +
+                  '</div>' +
+                  (aiFb[2] ? ('<div class="small text-secondary mt-2 border-top pt-1" style="white-space: pre-wrap;">' + escapeHtml(aiFb[2]) + '</div>') : '') +
+                '</div>' +
+                '<div class="bg-white p-3 rounded border mb-2">' +
+                  '<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">' +
+                    '<div><strong>การให้คะแนนครั้งที่ 3 บทที่ 3 (การตรวจปุ่มที่ 4)</strong>' +
+                    '<div class="text-muted small">คะแนนเต็ม 10 คะแนน | คะแนนที่ได้: <b class="text-primary fs-6">' + (sc.score3 !== '' ? sc.score3 : '-') + ' / 10</b></div></div>' +
+                    '<button type="button" class="btn btn-primary btn-touch" onclick="triggerAIGrade(\'' + g.groupId + '\', \'' + g.groupName + '\', 3)">🤖 ตรวจให้คะแนนครั้งที่ 3</button>' +
+                  '</div>' +
+                  (aiFb[3] ? ('<div class="small text-secondary mt-2 border-top pt-1" style="white-space: pre-wrap;">' + escapeHtml(aiFb[3]) + '</div>') : '') +
+                '</div>' +
+                '<div class="bg-white p-3 rounded border">' +
+                  '<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">' +
+                    '<div><strong>การให้คะแนนครั้งที่ 7 การนำเสนอโครงงาน (การตรวจปุ่มที่ 2–8)</strong>' +
+                    '<div class="text-muted small">คะแนนเต็ม 30 คะแนน (เมื่ออนุมัติครบทั้ง 8 ปุ่ม) | คะแนนที่ได้: <b class="text-primary fs-6">' + (sc.score7 !== '' ? sc.score7 : '-') + ' / 30</b></div></div>' +
+                    '<button type="button" class="btn ' + (allApproved ? 'btn-success' : 'btn-secondary') + ' btn-touch" onclick="triggerAIGrade(\'' + g.groupId + '\', \'' + g.groupName + '\', 7)">🤖 ตรวจให้คะแนนครั้งที่ 7</button>' +
+                  '</div>' +
+                  (aiFb[7] ? ('<div class="small text-secondary mt-2 border-top pt-1" style="white-space: pre-wrap;">' + escapeHtml(aiFb[7]) + '</div>') : '') +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+            '<div class="col-12 col-lg-5">' +
+              '<div class="manual-score-box h-100 d-flex flex-column justify-content-between">' +
+                '<div>' +
+                  '<h6 class="fw-bold text-warning-emphasis mb-3">✍️ ส่วนที่ 3: การให้คะแนนสำหรับครูผู้สอนให้ด้วยตนเอง (รวม 40 คะแนน)</h6>' +
+                  '<div class="mb-3"><label class="form-label fw-bold">การให้คะแนนครั้งที่ 4 การสอบเค้าโครง (เต็ม 20 คะแนน)</label>' +
+                  '<input type="number" id="mScore4_' + g.groupId + '" class="form-control" min="0" max="20" step="1" placeholder="กรอกคะแนน (0 - 20)" value="' + (sc.score4 !== '' ? sc.score4 : '') + '"></div>' +
+                  '<div class="mb-3"><label class="form-label fw-bold">การให้คะแนนครั้งที่ 5 การดำเนินการตามโครงงาน (เต็ม 5 คะแนน)</label>' +
+                  '<input type="number" id="mScore5_' + g.groupId + '" class="form-control" min="0" max="5" step="1" placeholder="กรอกคะแนน (0 - 5)" value="' + (sc.score5 !== '' ? sc.score5 : '') + '"></div>' +
+                  '<div class="mb-3"><label class="form-label fw-bold">การให้คะแนนครั้งที่ 6 การดำเนินการอภิปรายโครงงาน (เต็ม 15 คะแนน)</label>' +
+                  '<input type="number" id="mScore6_' + g.groupId + '" class="form-control" min="0" max="15" step="1" placeholder="กรอกคะแนน (0 - 15)" value="' + (sc.score6 !== '' ? sc.score6 : '') + '"></div>' +
+                '</div>' +
+                '<button type="button" class="btn btn-warning btn-touch w-100 fw-bold mt-2" onclick="submitManualScores(\'' + g.groupId + '\', \'' + g.groupName + '\')">💾 บันทึกคะแนนครั้งที่ 4, 5 และ 6</button>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+      container.insertAdjacentHTML('beforeend', cardHtml);
+    });
+  }
+
+  function submitSaveCriteria() {
+    hideTeacherAlert();
+    var btn = document.getElementById('saveCriteriaBtn');
+    btn.disabled = true;
+    btn.innerText = 'กำลังบันทึกเกณฑ์...';
+
+    var payload = {
+      criteria_1: document.getElementById('c_criteria_1').value,
+      criteria_2: document.getElementById('c_criteria_2').value,
+      criteria_3: document.getElementById('c_criteria_3').value,
+      criteria_7: document.getElementById('c_criteria_7').value,
+      gemini_api_key: document.getElementById('c_gemini_key').value
+    };
+
+    google.script.run.withSuccessHandler(function(res) {
+      btn.disabled = false;
+      btn.innerText = '💾 บันทึกเกณฑ์การตรวจให้คะแนน';
+      if (res.success) showTeacherAlert(res.message, 'success');
+      else showTeacherAlert(res.message, 'danger');
+    }).saveGradingCriteria(payload);
+  }
+
+  function submitStepDecision(groupId, stepNum, decision) {
+    hideTeacherAlert();
+    var comment = document.getElementById('tComment_' + groupId + '_' + stepNum).value;
+    google.script.run.withSuccessHandler(function(res) {
+      if (res.success) {
+        showTeacherAlert('อัปเดตสถานะปุ่มที่ ' + stepNum + ' เรียบร้อยแล้ว!', 'success');
+        renderTeacherData(res);
+      } else {
+        showTeacherAlert(res.message, 'danger');
+      }
+    }).teacherReviewStep(groupId, stepNum, decision, comment);
+  }
+
+  function submitManualScores(groupId, groupName) {
+    hideTeacherAlert();
+    var s4 = document.getElementById('mScore4_' + groupId).value;
+    var s5 = document.getElementById('mScore5_' + groupId).value;
+    var s6 = document.getElementById('mScore6_' + groupId).value;
+
+    google.script.run.withSuccessHandler(function(res) {
+      if (res.success) {
+        showTeacherAlert(res.message, 'success');
+        renderTeacherData(res.dashboard);
+      } else {
+        showTeacherAlert(res.message, 'danger');
+      }
+    }).saveTeacherManualScores(groupId, groupName, s4, s5, s6);
+  }
+
+  // ==========================================================
+  // ตัวแปรควบคุมจังหวะการกดตรวจด้วย AI (ปรับเปลี่ยนได้)
+  // ==========================================================
+  var AI_COOLDOWN_SECONDS = 5;    // เวลาหน่วงปลอดภัยหลังตรวจเสร็จแต่ละครั้ง (หน่วย: วินาที)
+  window.isAnyAIProcessing = false;
+
+  /**
+   * ล็อกหรือปลดล็อกปุ่ม AI ทั้งหมดบนหน้าจอ เพื่อป้องกันการกดซ้อนกันระหว่างรอผล
+   */
+  function setAllAIButtonsDisabled_(isDisabled) {
+    var btns = document.querySelectorAll('.ai-score-box button, [id^="btnAiStep_"]');
+    btns.forEach(function(b) {
+      b.disabled = isDisabled;
+    });
+  }
+
+  /**
+   * นับถอยหลังระยะปลอดภัยก่อนปลดล็อกให้กดตรวจครั้งถัดไป
+   */
+  function startAICooldown_(seconds, doneMsg) {
+    var remaining = seconds;
+    var timer = setInterval(function() {
+      remaining--;
+      if (remaining <= 0) {
+        clearInterval(timer);
+        window.isAnyAIProcessing = false;
+        setAllAIButtonsDisabled_(false);
+        if (doneMsg) {
+          showTeacherAlert(doneMsg, 'info');
+        }
+      }
+    }, 1000);
+  }
+
+  function triggerAIGrade(groupId, groupName, assessmentNum) {
+    if (window.isAnyAIProcessing) {
+      showTeacherAlert('⏳ กรุณารอให้ AI ตรวจรอบก่อนหน้าและพักคูลดาวน์ให้เสร็จก่อนครับ เพื่อความแม่นยำของคะแนน', 'warning');
+      return;
+    }
+
+    window.isAnyAIProcessing = true;
+    setAllAIButtonsDisabled_(true);
+    hideTeacherAlert();
+    showTeacherAlert('⏳ กำลังให้ Gemini AI ตรวจให้คะแนนครั้งที่ ' + assessmentNum + ' ของกลุ่ม ' + groupName + ' (กรุณารอสักครู่)...', 'info');
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if (res && res.success) {
+          showTeacherAlert(res.message + ' | พักระบบ ' + AI_COOLDOWN_SECONDS + ' วินาทีก่อนตรวจครั้งถัดไป...', 'success');
+          renderTeacherData(res.dashboard);
+          setAllAIButtonsDisabled_(true); // คงสถานะล็อกปุ่มต่อจนกว่าจะครบคูลดาวน์
+          startAICooldown_(AI_COOLDOWN_SECONDS, '✅ พร้อมกดตรวจงานด้วย AI ในครั้งถัดไปได้แล้วครับ');
+        } else {
+          window.isAnyAIProcessing = false;
+          setAllAIButtonsDisabled_(false);
+          showTeacherAlert(res ? res.message : 'ไม่สามารถตรวจให้คะแนนได้', 'danger');
+        }
+      })
+      .withFailureHandler(function(err) {
+        window.isAnyAIProcessing = false;
+        setAllAIButtonsDisabled_(false);
+        showTeacherAlert('เกิดข้อผิดพลาดในการตรวจให้คะแนน: ' + (err.message || err), 'danger');
+      })
+      .runAIGradingForGroup(groupId, groupName, assessmentNum);
+  }
+
+  function triggerAIStepInspect(groupId, stepNum) {
+    if (window.isAnyAIProcessing) {
+      showTeacherAlert('⏳ กรุณารอให้ AI ตรวจปุ่มก่อนหน้าให้เสร็จสมบูรณ์ก่อนครับ', 'warning');
+      return;
+    }
+
+    window.isAnyAIProcessing = true;
+    setAllAIButtonsDisabled_(true);
+
+    var btn = document.getElementById('btnAiStep_' + groupId + '_' + stepNum);
+    var commentInput = document.getElementById('tComment_' + groupId + '_' + stepNum);
+    if (btn) btn.innerHTML = '⏳ กำลังตรวจ...';
+    if (commentInput) {
+      commentInput.value = '⏳ กำลังให้ Gemini AI วิเคราะห์เนื้อหาปุ่มที่ ' + stepNum + '...';
+    }
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if (btn) btn.innerHTML = '🤖 AI ตรวจปุ่มที่ ' + stepNum;
+        if (res && res.success) {
+          if (commentInput) {
+            commentInput.value = res.comment || '';
+            commentInput.setAttribute('data-ai-unsaved', 'true'); // ป้องกัน Auto-Sync ล้างข้อความนี้ทิ้ง
+            commentInput.style.backgroundColor = res.passed ? '#e8f5e9' : '#fff3cd';
+          }
+          showTeacherAlert(res.comment + ' (กรุณากดอนุมัติหรือส่งกลับแก้ไขเพื่อบันทึกข้อความนี้)', res.passed ? 'success' : 'warning');
+          startAICooldown_(3, ''); // พัก 3 วินาทีสำหรับปุ่มตรวจคัดกรองรายปุ่ม
+        } else {
+          window.isAnyAIProcessing = false;
+          setAllAIButtonsDisabled_(false);
+          if (commentInput) commentInput.value = '';
+          showTeacherAlert(res ? res.message : 'ไม่สามารถตรวจได้', 'danger');
+        }
+      })
+      .withFailureHandler(function(err) {
+        window.isAnyAIProcessing = false;
+        setAllAIButtonsDisabled_(false);
+        if (btn) btn.innerHTML = '🤖 AI ตรวจปุ่มที่ ' + stepNum;
+        if (commentInput) commentInput.value = '';
+        showTeacherAlert('เกิดข้อผิดพลาด: ' + (err.message || err), 'danger');
+      })
+      .inspectStepWithAI(groupId, stepNum);
+  }
+
+  // =====================================================================
+  // ระบบซิงค์ข้อมูลอัตโนมัติ (Auto-Sync) + เรียงกลุ่มรอตรวจไว้บนสุด + จำสถานะหน้าจอ
+  // =====================================================================
+  (function() {
+    var cachedDashboardResponse = null;
+    var lastDataSignature = '';
+    var selectedTeacherRoom = 'ALL';
+    var selectedStatusFilter = 'ALL';
+    var autoSyncIntervalSec = 30;
+    var autoSyncTimerId = null;
+    var isSilentRefreshing = false;
+
+    function computeGroupsSignature(groupsList) {
+      if (!groupsList || !Array.isArray(groupsList)) return '';
+      return JSON.stringify(groupsList.map(function(g) {
+        return {
+          id: g.groupId,
+          title: g.projectTitle,
+          mCount: (g.members || []).length,
+          steps: g.progress ? g.progress.steps : {},
+          comments: g.progress ? g.progress.comments : {},
+          scores: g.scores || {}
+        };
+      }));
+    }
+
+    function captureCurrentUIState() {
+      var state = {
+        scrollY: window.scrollY || window.pageYOffset || 0,
+        openViewers: {},
+        inputValues: {},
+        aiUnsavedInputs: {}
+      };
+
+      var viewers = document.querySelectorAll('.student-content-viewer');
+      viewers.forEach(function(el) {
+        if (el.id && !el.classList.contains('hidden')) {
+          state.openViewers[el.id] = true;
+        }
+      });
+
+      var inputs = document.querySelectorAll('#groupsListContainer input');
+      inputs.forEach(function(inp) {
+        if (inp.id) {
+          state.inputValues[inp.id] = inp.value;
+          if (inp.getAttribute('data-ai-unsaved') === 'true') {
+            state.aiUnsavedInputs[inp.id] = inp.value;
+          }
+        }
+      });
+
+      return state;
+    }
+
+    function restoreCurrentUIState(state, preserveScroll) {
+      if (!state) return;
+
+      Object.keys(state.openViewers).forEach(function(viewerId) {
+        var el = document.getElementById(viewerId);
+        if (el) el.classList.remove('hidden');
+      });
+
+      Object.keys(state.inputValues).forEach(function(inputId) {
+        var inp = document.getElementById(inputId);
+        if (!inp) return;
+        if (document.activeElement === inp || state.aiUnsavedInputs[inputId] !== undefined) {
+          inp.value = state.inputValues[inputId];
+          if (state.aiUnsavedInputs[inputId] !== undefined) {
+            inp.setAttribute('data-ai-unsaved', 'true');
+          }
+        }
+      });
+
+      if (preserveScroll) {
+        window.scrollTo({ top: state.scrollY, behavior: 'instant' });
+      }
+    }
+
+    function isTeacherActivelyTyping() {
+      var activeEl = document.activeElement;
+      if (!activeEl) return false;
+      var container = document.getElementById('groupsListContainer');
+      if (container && container.contains(activeEl)) {
+        var tag = activeEl.tagName;
+        return (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT');
+      }
+      return false;
+    }
+
+    /**
+     * ค้นหาหมายเลขปุ่ม (1 ถึง 8) ที่มีสถานะเป็น 'รอครูตรวจสอบ' (แก้ไขข้อผิดพลาด ReferenceError เรียบร้อยแล้ว)
+     */
+    function getPendingStepNumbers(groupObj) {
+      var pendingList = [];
+      var steps = (groupObj && groupObj.progress && groupObj.progress.steps) ? groupObj.progress.steps : {};
+      for (var s = 1; s <= TOTAL_TEACHER_STEPS; s++) {
+        var st = steps[s] || {};
+        if (String(st.status || '').trim() === 'รอครูตรวจสอบ') {
+          pendingList.push(s);
+        }
+      }
+      return pendingList;
+    }
+
+    function getGroupSortPriority(groupObj) {
+      var pendingSteps = getPendingStepNumbers(groupObj);
+      if (pendingSteps.length > 0) return 0;
+
+      var steps = (groupObj && groupObj.progress && groupObj.progress.steps) ? groupObj.progress.steps : {};
+      var allApproved = true;
+      for (var s = 1; s <= TOTAL_TEACHER_STEPS; s++) {
+        var st = steps[s] || { status: 'ล็อก' };
+        if (String(st.status || '').trim() !== 'อนุมัติแล้ว') {
+          allApproved = false;
+          break;
+        }
+      }
+      return allApproved ? 2 : 1;
+    }
+
+    function updateSyncStatusText(text, isHighlight) {
+      var syncEl = document.getElementById('teacherAutoSyncStatus');
+      if (syncEl) {
+        syncEl.innerText = text;
+        syncEl.className = isHighlight ? 'small fw-bold text-primary' : 'small text-muted';
+      }
+    }
+
+    function formatTimeNow() {
+      var d = new Date();
+      var hh = String(d.getHours()).padStart(2, '0');
+      var mm = String(d.getMinutes()).padStart(2, '0');
+      var ss = String(d.getSeconds()).padStart(2, '0');
+      return hh + ':' + mm + ':' + ss;
+    }
+
+    window.silentRefreshTeacherDashboard = function(forceRender) {
+      if (isSilentRefreshing) return;
+      if (window.isAnyAIProcessing) return; // พัก Auto-Sync ชั่วคราวระหว่าง AI กำลังตรวจงาน
+      var container = document.getElementById('groupsListContainer');
+      if (!container) return;
+
+      if (!forceRender && isTeacherActivelyTyping()) {
+        updateSyncStatusText('⏸️ ชะลอการซิงค์ชั่วคราว (กำลังพิมพ์ข้อมูล...)', false);
+        return;
+      }
+
+      isSilentRefreshing = true;
+      updateSyncStatusText('🔄 กำลังซิงค์ข้อมูลล่าสุดอัตโนมัติ...', true);
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          isSilentRefreshing = false;
+          if (!res || !res.success) {
+            updateSyncStatusText('⚠️ ซิงค์ไม่สำเร็จเมื่อ ' + formatTimeNow(), false);
+            return;
+          }
+
+          var newSig = computeGroupsSignature(res.groups);
+          if (forceRender || newSig !== lastDataSignature) {
+            lastDataSignature = newSig;
+            window.renderTeacherData(res, true);
+            updateSyncStatusText('✅ พบข้อมูลใหม่! อัปเดตอัตโนมัติเมื่อ ' + formatTimeNow(), true);
+          } else {
+            updateSyncStatusText('⚡ ข้อมูลเป็นปัจจุบันแล้ว (เช็กล่าสุด ' + formatTimeNow() + ')', false);
+          }
+        })
+        .withFailureHandler(function() {
+          isSilentRefreshing = false;
+          updateSyncStatusText('⚠️ การเชื่อมต่อขัดข้องเมื่อ ' + formatTimeNow(), false);
+        })
+        .getTeacherDashboardData();
+    };
+
+    function restartAutoSyncTimer() {
+      if (autoSyncTimerId) {
+        clearInterval(autoSyncTimerId);
+        autoSyncTimerId = null;
+      }
+      if (autoSyncIntervalSec > 0) {
+        autoSyncTimerId = setInterval(function() {
+          if (!document.hidden && document.getElementById('groupsListContainer')) {
+            window.silentRefreshTeacherDashboard(false);
+          }
+        }, autoSyncIntervalSec * 1000);
+      }
+    }
+
+    document.addEventListener('visibilitychange', function() {
+      if (!document.hidden && autoSyncIntervalSec > 0 && document.getElementById('groupsListContainer')) {
+        window.silentRefreshTeacherDashboard(false);
+      }
+    });
+
+    window.showTeacherAlert = function(msg, type) {
+      type = type || 'success';
+      var box = document.getElementById('teacherAlert');
+      if (box) {
+        box.className = 'alert alert-' + type + ' shadow-sm';
+        box.innerText = msg;
+        box.classList.remove('hidden');
+      }
+
+      var toast = document.getElementById('teacherFloatingToast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'teacherFloatingToast';
+        toast.style.cssText = 'position:fixed; bottom:24px; right:24px; z-index:9999; max-width:420px; transition:opacity 0.3s;';
+        document.body.appendChild(toast);
+      }
+      toast.innerHTML = '<div class="alert alert-' + type + ' shadow-lg border-2 fw-bold m-0 py-3 px-4">' + escapeHtml(msg) + '</div>';
+      toast.style.opacity = '1';
+      toast.style.display = 'block';
+
+      if (window.__teacherToastTimer) clearTimeout(window.__teacherToastTimer);
+      window.__teacherToastTimer = setTimeout(function() {
+        if (toast) toast.style.display = 'none';
+      }, 4500);
+    };
+
+    var originalRenderTeacherData = window.renderTeacherData;
+    if (typeof originalRenderTeacherData === 'function') {
+      window.renderTeacherData = function(res, keepScrollPosition) {
+        var savedUI = captureCurrentUIState();
+
+        if (res && res.groups) {
+          cachedDashboardResponse = res;
+          lastDataSignature = computeGroupsSignature(res.groups);
+        }
+        if (!cachedDashboardResponse) return;
+
+        var container = document.getElementById('groupsListContainer');
+        if (container && !document.getElementById('teacherRoomFilterBar')) {
+          var filterBar = document.createElement('div');
+          filterBar.id = 'teacherRoomFilterBar';
+          filterBar.className = 'card p-3 mb-3 shadow-sm border-success bg-white';
+          filterBar.innerHTML =
+            '<div class="row g-2 align-items-center">' +
+              '<div class="col-12 col-md-4">' +
+                '<label class="form-label small fw-bold text-success mb-1">🏫 เลือกห้องเรียน:</label>' +
+                '<select id="teacherRoomSelect" class="form-select fw-bold" onchange="onTeacherRoomFilterChange(this.value)"></select>' +
+              '</div>' +
+              '<div class="col-12 col-md-4">' +
+                '<label class="form-label small fw-bold text-primary mb-1">🔔 ตัวกรองสถานะการตรวจ:</label>' +
+                '<select id="teacherStatusSelect" class="form-select fw-bold" onchange="onTeacherStatusFilterChange(this.value)">' +
+                  '<option value="ALL">📋 แสดงทุกกลุ่ม (นำกลุ่มรอตรวจไว้บนสุด)</option>' +
+                  '<option value="PENDING_ONLY">⏳ แสดงเฉพาะกลุ่มที่ "รอครูตรวจสอบ"</option>' +
+                '</select>' +
+              '</div>' +
+              '<div class="col-12 col-md-4">' +
+                '<label class="form-label small fw-bold text-secondary mb-1">⚡ ซิงค์ข้อมูลอัตโนมัติ (ไม่ต้องกดโหลดเอง):</label>' +
+                '<div class="input-group">' +
+                  '<select id="teacherAutoSyncSelect" class="form-select fw-bold" onchange="onTeacherAutoSyncChange(this.value)">' +
+                    '<option value="15">ทุก 15 วินาที</option>' +
+                    '<option value="30" selected>ทุก 30 วินาที (แนะนำ)</option>' +
+                    '<option value="60">ทุก 1 นาที</option>' +
+                    '<option value="0">ปิดการซิงค์อัตโนมัติ</option>' +
+                  '</select>' +
+                  '<button type="button" class="btn btn-outline-success fw-bold" onclick="silentRefreshTeacherDashboard(true)" title="ซิงค์เดี๋ยวนี้โดยไม่กระพริบ">🔄 ซิงค์ทันที</button>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+            '<div class="d-flex justify-content-between align-items-center flex-wrap mt-2 pt-2 border-top">' +
+              '<div id="teacherAutoSyncStatus" class="small text-muted">⚡ ระบบซิงค์อัตโนมัติพร้อมทำงาน</div>' +
+              '<div class="d-flex gap-2 align-items-center">' +
+                '<span id="teacherPendingCountBadge" class="badge bg-danger px-3 py-1"></span>' +
+                '<span id="teacherGroupCountBadge" class="badge bg-success px-3 py-1"></span>' +
+              '</div>' +
+            '</div>';
+          container.parentNode.insertBefore(filterBar, container);
+          restartAutoSyncTimer();
+        }
+
+        var allGroups = cachedDashboardResponse.groups || [];
+        var roomSet = {};
+
+        allGroups.forEach(function(g) {
+          var rm = (g.members && g.members[0] && g.members[0].room) ? String(g.members[0].room).trim() : 'ไม่ระบุห้อง';
+          roomSet[rm] = (roomSet[rm] || 0) + 1;
+        });
+        var sortedRooms = Object.keys(roomSet).sort();
+
+        var selectEl = document.getElementById('teacherRoomSelect');
+        if (selectEl) {
+          var currentVal = selectedTeacherRoom;
+          selectEl.innerHTML = '<option value="ALL">📌 แสดงทุกห้องเรียน (รวมทั้งหมด ' + allGroups.length + ' กลุ่ม)</option>';
+          sortedRooms.forEach(function(rm) {
+            var sel = (rm === currentVal) ? ' selected' : '';
+            selectEl.innerHTML += '<option value="' + rm + '"' + sel + '>ห้อง ' + rm + ' (' + roomSet[rm] + ' กลุ่ม)</option>';
+          });
+        }
+
+        var statusSelectEl = document.getElementById('teacherStatusSelect');
+        if (statusSelectEl) statusSelectEl.value = selectedStatusFilter;
+
+        var syncSelectEl = document.getElementById('teacherAutoSyncSelect');
+        if (syncSelectEl) syncSelectEl.value = String(autoSyncIntervalSec);
+
+        var filteredGroups = (selectedTeacherRoom === 'ALL')
+          ? allGroups.slice()
+          : allGroups.filter(function(g) {
+              var rm = (g.members && g.members[0] && g.members[0].room) ? String(g.members[0].room).trim() : 'ไม่ระบุห้อง';
+              return rm === selectedTeacherRoom;
+            });
+
+        if (selectedStatusFilter === 'PENDING_ONLY') {
+          filteredGroups = filteredGroups.filter(function(g) {
+            return getPendingStepNumbers(g).length > 0;
+          });
+        }
+
+        filteredGroups.sort(function(a, b) {
+          var prioA = getGroupSortPriority(a);
+          var prioB = getGroupSortPriority(b);
+          if (prioA !== prioB) return prioA - prioB;
+          var idA = String(a.groupId || '');
+          var idB = String(b.groupId || '');
+          return idA.localeCompare(idB, 'th', { numeric: true });
+        });
+
+        var pendingInFiltered = filteredGroups.filter(function(g) {
+          return getPendingStepNumbers(g).length > 0;
+        }).length;
+
+        var pendingBadgeEl = document.getElementById('teacherPendingCountBadge');
+        if (pendingBadgeEl) {
+          if (pendingInFiltered > 0) {
+            pendingBadgeEl.className = 'badge bg-danger px-3 py-2 shadow-sm';
+            pendingBadgeEl.innerText = '🔔 รอครูตรวจ ' + pendingInFiltered + ' กลุ่ม';
+          } else {
+            pendingBadgeEl.className = 'badge bg-secondary px-3 py-2';
+            pendingBadgeEl.innerText = '✅ ไม่มีงานค้างตรวจ';
+          }
+        }
+
+        var badgeEl = document.getElementById('teacherGroupCountBadge');
+        if (badgeEl) {
+          badgeEl.innerText = 'แสดง ' + filteredGroups.length + ' / ' + allGroups.length + ' กลุ่ม';
+        }
+
+        var filteredRes = Object.assign({}, cachedDashboardResponse, { groups: filteredGroups });
+        originalRenderTeacherData(filteredRes);
+
+        if (container) {
+          var cards = container.querySelectorAll('.group-review-card');
+          cards.forEach(function(card, idx) {
+            var grp = filteredGroups[idx];
+            if (!grp) return;
+            var pendingNums = getPendingStepNumbers(grp);
+            if (pendingNums.length > 0) {
+              card.style.border = '2px solid #dc3545';
+              var headerEl = card.querySelector('.card-header');
+              if (headerEl) {
+                var alertBadge = document.createElement('div');
+                alertBadge.className = 'mt-2';
+                alertBadge.innerHTML = '<span class="badge bg-danger text-white fs-6 px-3 py-1 shadow-sm">⏳ รอครูตรวจสอบ: ปุ่มที่ ' + pendingNums.join(', ') + '</span>';
+                var firstDiv = headerEl.querySelector('div');
+                if (firstDiv) firstDiv.appendChild(alertBadge);
+              }
+            }
+          });
+
+          var imgs = container.querySelectorAll('img');
+          imgs.forEach(function(img) {
+            img.setAttribute('loading', 'lazy');
+          });
+        }
+
+        updateSyncStatusText('⚡ ซิงค์ข้อมูลล่าสุดเมื่อ ' + formatTimeNow(), false);
+        restoreCurrentUIState(savedUI, keepScrollPosition !== false);
+      };
+    }
+
+    window.onTeacherRoomFilterChange = function(newRoomVal) {
+      selectedTeacherRoom = newRoomVal || 'ALL';
+      if (cachedDashboardResponse) {
+        window.renderTeacherData(cachedDashboardResponse, false);
+      }
+    };
+
+    window.onTeacherStatusFilterChange = function(newStatusVal) {
+      selectedStatusFilter = newStatusVal || 'ALL';
+      if (cachedDashboardResponse) {
+        window.renderTeacherData(cachedDashboardResponse, false);
+      }
+    };
+
+    window.onTeacherAutoSyncChange = function(secVal) {
+      autoSyncIntervalSec = Number(secVal) || 0;
+      restartAutoSyncTimer();
+      if (autoSyncIntervalSec > 0) {
+        updateSyncStatusText('⚡ ตั้งค่าซิงค์อัตโนมัติทุก ' + autoSyncIntervalSec + ' วินาที', true);
+      } else {
+        updateSyncStatusText('⏸️ ปิดการซิงค์อัตโนมัติชั่วคราว', false);
+      }
+    };
+  })();
+</script>
+<?!= include('SystemConfig'); ?>
