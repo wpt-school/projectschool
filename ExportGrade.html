@@ -1,0 +1,238 @@
+<!-- ===================================================================== -->
+<!-- ไฟล์ ExportGrade.html : หน้าต่างส่งคะแนนโครงงานอาชีพไปยังไฟล์ ปพ.5     -->
+<!-- ===================================================================== -->
+<style>
+  .pp5-card {
+    border-radius: 16px;
+    border: 2px solid #0f766e;
+    background: #ffffff;
+  }
+  .pp5-header {
+    background: linear-gradient(135deg, #0f766e, #115e59);
+    color: #ffffff;
+  }
+  .pp5-col-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+  }
+  .pp5-col-item {
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 12px 14px;
+    transition: all 0.2s;
+  }
+  .pp5-col-item:focus-within {
+    border-color: #0f766e;
+    background: #f0fdfa;
+    box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+  }
+  .pp5-col-label {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 6px;
+    display: block;
+  }
+  .pp5-badge-source {
+    display: inline-block;
+    background: #ccfbf1;
+    color: #115e59;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 6px;
+    margin-bottom: 4px;
+  }
+  .pp5-col-input {
+    text-transform: uppercase;
+    font-weight: 700;
+    text-align: center;
+    letter-spacing: 1px;
+  }
+  .pp5-action-bar {
+    background: #f0fdfa;
+    border: 1px solid #99f6e4;
+    border-radius: 12px;
+    padding: 16px;
+    margin-top: 20px;
+  }
+</style>
+
+<div class="card pp5-card mb-4 shadow-sm" id="pp5ExportSection">
+  <!-- ส่วนหัวของการ์ดส่งคะแนน ปพ.5 พร้อมปุ่มบันทึกการตั้งค่าด่วนด้านบน -->
+  <div class="card-header pp5-header d-flex justify-content-between align-items-center flex-wrap gap-2 py-3">
+    <div style="cursor: pointer;" onclick="togglePp5PanelBody()">
+      <h6 class="fw-bold m-0">📊 ส่งคะแนนโครงงานอาชีพไปยังไฟล์ ปพ.5 (คลิกเพื่อพับเก็บ/ขยาย)</h6>
+      <div class="small text-light mt-1">
+        ตรวจสอบคะแนนจากชีท <b>GroupScores (คอลัมน์ C - I)</b> ➔ สมาชิกกลุ่มในชีท <b>Groups (คอลัมน์ E - I)</b> ➔ บันทึกลง ปพ.5
+      </div>
+    </div>
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <button type="button" class="btn btn-warning btn-sm fw-bold text-dark shadow-sm" onclick="savePp5ConfigOnly()">
+        💾 บันทึกการตั้งค่าคอลัมน์
+      </button>
+      <button type="button" class="btn btn-light btn-sm fw-bold text-dark" onclick="togglePp5PanelBody()">
+        🔼 พับเก็บ / ขยาย
+      </button>
+    </div>
+  </div>
+
+  <!-- เปิดแสดงเนื้อหาและปุ่มทั้งหมดทันทีโดยไม่ซ่อนไว้ (ไม่มีคลาส hidden) -->
+  <div id="pp5PanelBody" class="card-body">
+    <!-- ส่วนที่ 1: ลิงก์ Google Sheet ปลายทาง, ชื่อชีท และคอลัมน์เลขประจำตัวนักเรียน -->
+    <div class="row g-3 mb-3">
+      <div class="col-12 col-md-6">
+        <label class="form-label fw-bold text-dark">
+          1. ลิงก์ของ Google Sheet ปลายทาง (ปพ.5):
+        </label>
+        <div class="input-group">
+          <input
+            type="text"
+            id="pp5TargetUrl"
+            class="form-control"
+            value="https://docs.google.com/spreadsheets/d/1tjPGr0Ev3qqmFim7RTHUBF175i_0MXmqojvys7njlhI/edit?gid=394778151#gid=394778151"
+            placeholder="วางลิงก์ Google Sheet ปลายทางที่นี่..."
+          >
+          <button class="btn btn-dark fw-bold" type="button" id="btnFetchSheets" onclick="fetchPp5SheetNames()">
+            🔍 ดึงรายชื่อชีท
+          </button>
+        </div>
+        <div id="pp5FileTitleHint" class="form-text text-success fw-semibold"></div>
+      </div>
+
+      <div class="col-12 col-md-3">
+        <label class="form-label fw-bold text-dark">
+          2. ระบุชีทที่ต้องการใส่คะแนน:
+        </label>
+        <input
+          type="text"
+          id="pp5TargetSheet"
+          class="form-control"
+          list="pp5SheetOptionsList"
+          placeholder="พิมพ์หรือเลือกชื่อชีท..."
+        >
+        <datalist id="pp5SheetOptionsList"></datalist>
+        <div class="form-text">กด "ดึงรายชื่อชีท" เพื่อเลือกจากรายการ</div>
+      </div>
+
+      <div class="col-12 col-md-3">
+        <label class="form-label fw-bold text-dark">
+          4. คอลัมน์เลขประจำตัวนักเรียน (ใน ปพ.5):
+        </label>
+        <input
+          type="text"
+          id="pp5StudentIdCol"
+          class="form-control pp5-col-input"
+          placeholder="เช่น B หรือ C หรือ AT"
+          value="B"
+          maxlength="3"
+        >
+        <div class="form-text">คอลัมน์ที่ใช้ตรวจสอบรหัสนักเรียน</div>
+      </div>
+    </div>
+
+    <hr class="my-3">
+
+    <!-- ส่วนที่ 2: ระบุคอลัมน์ปลายทางของคะแนนทั้ง 7 ครั้ง -->
+    <div>
+      <div class="d-flex justify-content-between align-items-center flex-wrap mb-2">
+        <label class="form-label fw-bold text-dark mb-0">
+          3. ระบุคอลัมน์ปลายทางใน ปพ.5 สำหรับคะแนนแต่ละส่วน (ใส่เฉพาะครั้งที่ต้องการส่ง เช่น E, F, G):
+        </label>
+        <span class="badge bg-secondary">ปล่อยว่างไว้ในช่องที่ยังไม่ต้องการส่งคะแนน</span>
+      </div>
+
+      <div class="pp5-col-grid">
+        <div class="pp5-col-item">
+          <span class="pp5-badge-source">GroupScores คอลัมน์ C</span>
+          <label class="pp5-col-label">ครั้งที่ 1 บทที่ 1 (10 คะแนน)</label>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">ใส่ที่คอลัมน์</span>
+            <input type="text" id="pp5Col_s1" class="form-control pp5-col-input" placeholder="เช่น E" maxlength="3">
+          </div>
+        </div>
+
+        <div class="pp5-col-item">
+          <span class="pp5-badge-source">GroupScores คอลัมน์ D</span>
+          <label class="pp5-col-label">ครั้งที่ 2 บทที่ 2 (10 คะแนน)</label>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">ใส่ที่คอลัมน์</span>
+            <input type="text" id="pp5Col_s2" class="form-control pp5-col-input" placeholder="เช่น F" maxlength="3">
+          </div>
+        </div>
+
+        <div class="pp5-col-item">
+          <span class="pp5-badge-source">GroupScores คอลัมน์ E</span>
+          <label class="pp5-col-label">ครั้งที่ 3 บทที่ 3 (10 คะแนน)</label>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">ใส่ที่คอลัมน์</span>
+            <input type="text" id="pp5Col_s3" class="form-control pp5-col-input" placeholder="เช่น G" maxlength="3">
+          </div>
+        </div>
+
+        <div class="pp5-col-item">
+          <span class="pp5-badge-source">GroupScores คอลัมน์ F</span>
+          <label class="pp5-col-label">ครั้งที่ 4 สอบเค้าโครง (20 คะแนน)</label>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">ใส่ที่คอลัมน์</span>
+            <input type="text" id="pp5Col_s4" class="form-control pp5-col-input" placeholder="เช่น H" maxlength="3">
+          </div>
+        </div>
+
+        <div class="pp5-col-item">
+          <span class="pp5-badge-source">GroupScores คอลัมน์ G</span>
+          <label class="pp5-col-label">ครั้งที่ 5 ดำเนินงาน (5 คะแนน)</label>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">ใส่ที่คอลัมน์</span>
+            <input type="text" id="pp5Col_s5" class="form-control pp5-col-input" placeholder="เช่น I" maxlength="3">
+          </div>
+        </div>
+
+        <div class="pp5-col-item">
+          <span class="pp5-badge-source">GroupScores คอลัมน์ H</span>
+          <label class="pp5-col-label">ครั้งที่ 6 อภิปรายผล (15 คะแนน)</label>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">ใส่ที่คอลัมน์</span>
+            <input type="text" id="pp5Col_s6" class="form-control pp5-col-input" placeholder="เช่น J" maxlength="3">
+          </div>
+        </div>
+
+        <div class="pp5-col-item">
+          <span class="pp5-badge-source">GroupScores คอลัมน์ I</span>
+          <label class="pp5-col-label">ครั้งที่ 7 นำเสนอ/เล่มสมบูรณ์ (30)</label>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">ใส่ที่คอลัมน์</span>
+            <input type="text" id="pp5Col_s7" class="form-control pp5-col-input" placeholder="เช่น K" maxlength="3">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- แถบปุ่มกดบันทึกการตั้งค่าคอลัมน์ และปุ่มส่งคะแนนไปยัง ปพ.5 -->
+    <div class="pp5-action-bar">
+      <div class="row g-2 align-items-center">
+        <div class="col-12 col-md-5">
+          <button type="button" class="btn btn-primary btn-touch w-100 fw-bold shadow-sm" id="btnSavePp5Config" onclick="savePp5ConfigOnly()">
+            💾 บันทึกการตั้งค่าคอลัมน์เก็บไว้ในระบบ
+          </button>
+        </div>
+        <div class="col-12 col-md-2">
+          <button type="button" class="btn btn-outline-secondary btn-touch w-100 fw-bold" onclick="loadSavedPp5ConfigToInputs(true)">
+            🔄 โหลดค่าที่บันทึกไว้
+          </button>
+        </div>
+        <div class="col-12 col-md-5">
+          <button type="button" class="btn btn-success btn-touch w-100 fw-bold shadow-sm" id="btnRunPp5Export" onclick="executePp5ScoreExport()">
+            🚀 ส่งคะแนนไปยังไฟล์ ปพ.5 ทันที
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- กล่องแสดงผลลัพธ์การบันทึกตั้งค่าและการส่งคะแนน -->
+    <div id="pp5ExportStatusBox" class="mt-3" style="display:none;"></div>
+  </div>
+</div>
