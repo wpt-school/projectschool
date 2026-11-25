@@ -1,0 +1,267 @@
+<!-- ===================================================================== -->
+<!-- ไฟล์ SystemConfig.html : หน้าต่างตั้งค่าหัวข้อระบบสำหรับปีการศึกษาถัดไป -->
+<!-- ===================================================================== -->
+<style>
+  .sys-config-card {
+    border-radius: 16px;
+    border: 2px solid #4f46e5;
+    background: #ffffff;
+  }
+  .sys-config-header {
+    background: linear-gradient(135deg, #3730a3, #4f46e5);
+    color: #ffffff;
+    cursor: pointer;
+  }
+  .sys-config-input {
+    font-weight: 600;
+    color: #1e293b;
+  }
+  .sys-config-input:focus {
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+  }
+</style>
+
+<!-- เก็บหน้าต่างตั้งค่าไว้ใน <template> เพื่อไม่ให้แสดงในหน้านักเรียน 100% -->
+<template id="systemConfigTemplate">
+  <div class="card sys-config-card mb-3 shadow-sm" id="systemConfigSection">
+    <div class="card-header sys-config-header d-flex justify-content-between align-items-center py-3" onclick="toggleSysConfigPanel()">
+      <div>
+        <h6 class="fw-bold m-0">⚙️ ตั้งค่าหัวข้อระบบ รายวิชา และปีการศึกษา (คลิกเพื่อพับเก็บ/ขยาย)</h6>
+        <div class="small text-light mt-1">สำหรับปรับเปลี่ยนชื่อรายวิชา รหัสวิชา ภาคเรียน ปีการศึกษา และชื่อครูผู้สอน ในปีการศึกษาถัดไป</div>
+      </div>
+      <span class="badge bg-warning text-dark">ตั้งค่าระบบ</span>
+    </div>
+
+    <div id="sysConfigPanelBody" class="card-body">
+      <div class="row g-3">
+        <!-- 1. รายวิชา -->
+        <div class="col-12 col-md-4">
+          <label class="form-label fw-bold text-dark">1. รายวิชา:</label>
+          <input type="text" id="sys_courseName" class="form-control sys-config-input" value="โครงงานอาชีพ" placeholder="เช่น โครงงานอาชีพ">
+        </div>
+
+        <!-- 2. รหัสวิชา -->
+        <div class="col-6 col-md-2">
+          <label class="form-label fw-bold text-dark">2. รหัสวิชา:</label>
+          <input type="text" id="sys_courseCode" class="form-control sys-config-input text-center" value="ง30202" placeholder="เช่น ง30202">
+        </div>
+
+        <!-- 3. ภาคเรียนที่ -->
+        <div class="col-6 col-md-2">
+          <label class="form-label fw-bold text-dark">3. ภาคเรียนที่:</label>
+          <input type="text" id="sys_semester" class="form-control sys-config-input text-center" value="2" placeholder="เช่น 1 หรือ 2">
+        </div>
+
+        <!-- 4. ปีการศึกษาที่ -->
+        <div class="col-12 col-md-4">
+          <label class="form-label fw-bold text-dark">4. ปีการศึกษาที่:</label>
+          <input type="text" id="sys_academicYear" class="form-control sys-config-input text-center" value="2569" placeholder="เช่น 2569 หรือ 2570">
+        </div>
+
+        <!-- 5. ครูผู้สอน -->
+        <div class="col-12">
+          <label class="form-label fw-bold text-dark">5. ครูผู้สอน:</label>
+          <input type="text" id="sys_teacherName" class="form-control sys-config-input" value="นายธนโชติ จันทรังษี" placeholder="เช่น นายธนโชติ จันทรังษี">
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-end gap-2 mt-3 flex-wrap">
+        <button type="button" class="btn btn-primary btn-touch px-4 fw-bold shadow-sm" id="btnSaveSysConfig" onclick="submitSaveSysConfig()">
+          💾 บันทึกการแก้ไขหัวข้อระบบ
+        </button>
+      </div>
+
+      <div id="sysConfigAlertBox" class="mt-3" style="display:none;"></div>
+    </div>
+  </div>
+</template>
+
+<script>
+  // ตัวแปรเก็บค่าหัวข้อระบบปัจจุบัน
+  var CURRENT_SYS_HEADER_CONFIG = {
+    courseName: 'โครงงานอาชีพ',
+    courseCode: 'ง30202',
+    semester: '2',
+    academicYear: '2569',
+    teacherName: 'นายธนโชติ จันทรังษี'
+  };
+
+  function toggleSysConfigPanel() {
+    var bodyEl = document.getElementById('sysConfigPanelBody');
+    if (bodyEl) bodyEl.classList.toggle('hidden');
+  }
+
+  /**
+   * แทรกการ์ดตั้งค่าหัวข้อระบบลงในหน้าครูผู้สอนอัตโนมัติ (โดยไม่ต้องแก้โค้ดใน Teacher.html)
+   */
+  function injectSysConfigCardIfNeeded() {
+    var teacherSection = document.getElementById('teacherSectionContent');
+    if (!teacherSection) return;
+    if (document.getElementById('systemConfigSection')) return; // ป้องกันการแทรกซ้ำ
+
+    var tpl = document.getElementById('systemConfigTemplate');
+    if (!tpl) return;
+
+    var wrapper = document.createElement('div');
+    wrapper.innerHTML = tpl.innerHTML;
+
+    // นำไปวางไว้เหนือกล่องตั้งค่าเกณฑ์ AI (หรือวางต่อจากแถบแจ้งเตือน teacherAlert)
+    var alertEl = document.getElementById('teacherAlert');
+    if (alertEl && alertEl.parentNode) {
+      alertEl.parentNode.insertBefore(wrapper.firstElementChild, alertEl.nextSibling);
+    } else {
+      teacherSection.prepend(wrapper.firstElementChild);
+    }
+
+    populateSysConfigInputs(CURRENT_SYS_HEADER_CONFIG);
+    updateDynamicHeaderTexts(CURRENT_SYS_HEADER_CONFIG);
+  }
+
+  function populateSysConfigInputs(cfg) {
+    if (!cfg) return;
+    var setVal = function(id, val) {
+      var el = document.getElementById(id);
+      if (el && val !== undefined) el.value = val;
+    };
+    setVal('sys_courseName', cfg.courseName);
+    setVal('sys_courseCode', cfg.courseCode);
+    setVal('sys_semester', cfg.semester);
+    setVal('sys_academicYear', cfg.academicYear);
+    setVal('sys_teacherName', cfg.teacherName);
+  }
+
+  /**
+   * อัปเดตข้อความหัวข้อบนหน้าเว็บทั้งในหน้าครูผู้สอนและหน้านักเรียนอัตโนมัติ
+   */
+  function updateDynamicHeaderTexts(cfg) {
+    if (!cfg) return;
+    CURRENT_SYS_HEADER_CONFIG = cfg;
+
+    // 1. อัปเดตชื่อแท็บของเบราว์เซอร์ (Document Title)
+    document.title = 'ระบบการจัดทำโครงงานอาชีพ รายวิชา ' + cfg.courseName + ' รหัสวิชา ' + cfg.courseCode + ' ภาคเรียนที่ ' + cfg.semester + ' ปีการศึกษา ' + cfg.academicYear;
+
+    // 2. อัปเดตส่วนหัวในหน้าต่างครูผู้สอน (.header-card-teacher)
+    var teacherHeaders = document.querySelectorAll('.header-card-teacher .small.mt-1');
+    teacherHeaders.forEach(function(el) {
+      el.innerText = 'รายวิชา ' + cfg.courseName + ' รหัสวิชา ' + cfg.courseCode + ' | ภาคเรียนที่ ' + cfg.semester + ' ปีการศึกษา ' + cfg.academicYear + ' | ครูผู้สอน ' + cfg.teacherName;
+    });
+
+    // 3. ค้นหาและอัปเดตข้อความหัวข้อในหน้านักเรียน (Index.html / Workspace.html) อัตโนมัติ
+    var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+    var textNode;
+    while ((textNode = walker.nextNode())) {
+      var parentTag = textNode.parentNode ? textNode.parentNode.tagName : '';
+      if (parentTag === 'SCRIPT' || parentTag === 'STYLE' || parentTag === 'TEXTAREA') continue;
+
+      var txt = textNode.nodeValue;
+      var updated = txt;
+
+      if (updated.indexOf('รายวิชา') !== -1) {
+        updated = updated.replace(/รายวิชา\s*โครงงานอาชีพ/g, 'รายวิชา ' + cfg.courseName);
+      }
+      if (updated.indexOf('รหัสวิชา') !== -1) {
+        updated = updated.replace(/รหัสวิชา\s*ง30202/g, 'รหัสวิชา ' + cfg.courseCode);
+      }
+      if (updated.indexOf('ภาคเรียนที่') !== -1) {
+        updated = updated.replace(/ภาคเรียนที่\s*\d+/g, 'ภาคเรียนที่ ' + cfg.semester);
+      }
+      if (updated.indexOf('ปีการศึกษา') !== -1) {
+        updated = updated.replace(/ปีการศึกษา\s*25\d{2}/g, 'ปีการศึกษา ' + cfg.academicYear);
+      }
+      if (updated.indexOf('ครูผู้สอน') !== -1) {
+        updated = updated.replace(/ครูผู้สอน\s*นายธนโชติ\s*จันทรังษี/g, 'ครูผู้สอน ' + cfg.teacherName);
+      }
+
+      if (updated !== txt) {
+        textNode.nodeValue = updated;
+      }
+    }
+  }
+
+  /**
+   * บันทึกข้อมูลเมื่อครูกดปุ่ม "💾 บันทึกการแก้ไขหัวข้อระบบ"
+   */
+  function submitSaveSysConfig() {
+    var payload = {
+      courseName: (document.getElementById('sys_courseName').value || '').trim(),
+      courseCode: (document.getElementById('sys_courseCode').value || '').trim(),
+      semester: (document.getElementById('sys_semester').value || '').trim(),
+      academicYear: (document.getElementById('sys_academicYear').value || '').trim(),
+      teacherName: (document.getElementById('sys_teacherName').value || '').trim()
+    };
+
+    if (!payload.courseName || !payload.courseCode || !payload.semester || !payload.academicYear || !payload.teacherName) {
+      showSysConfigAlert('warning', '⚠️ กรุณากรอกข้อมูลทั้ง 5 ช่องให้ครบถ้วนก่อนกดบันทึกครับ');
+      return;
+    }
+
+    var btn = document.getElementById('btnSaveSysConfig');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '⏳ กำลังบันทึกข้อมูล...';
+    }
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '💾 บันทึกการแก้ไขหัวข้อระบบ';
+        }
+        if (res && res.success) {
+          updateDynamicHeaderTexts(res.config);
+          showSysConfigAlert(
+            'success',
+            '✅ ' + res.message + ' (รายวิชา ' + res.config.courseName + ' รหัสวิชา ' + res.config.courseCode + ' ภาคเรียนที่ ' + res.config.semester + ' ปีการศึกษา ' + res.config.academicYear + ' | ครูผู้สอน ' + res.config.teacherName + ')'
+          );
+        } else {
+          showSysConfigAlert('danger', res ? res.message : 'ไม่สามารถบันทึกข้อมูลได้');
+        }
+      })
+      .withFailureHandler(function(err) {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '💾 บันทึกการแก้ไขหัวข้อระบบ';
+        }
+        showSysConfigAlert('danger', 'เกิดข้อผิดพลาด: ' + err.message);
+      })
+      .saveSystemHeaderConfig(payload);
+  }
+
+  function showSysConfigAlert(type, msg) {
+    var box = document.getElementById('sysConfigAlertBox');
+    if (!box) return;
+    box.style.display = 'block';
+    box.className = 'mt-3 alert alert-' + type;
+    box.innerHTML = msg;
+  }
+
+  /**
+   * เริ่มต้นทำงานอัตโนมัติเมื่อเปิดหน้าเว็บ:
+   * 1. ดึงค่าที่บันทึกไว้จาก Google Sheets มาอัปเดตหัวข้อบนหน้าเว็บ
+   * 2. เฝ้าดูการเปิดหน้าต่างครูผู้สอน (#teacherActiveMount) เพื่อแทรกการ์ดตั้งค่าเข้าไปอัตโนมัติ
+   */
+  window.addEventListener('DOMContentLoaded', function() {
+    var mountTarget = document.getElementById('teacherActiveMount');
+    if (mountTarget) {
+      var observer = new MutationObserver(function() {
+        injectSysConfigCardIfNeeded();
+      });
+      observer.observe(mountTarget, { childList: true, subtree: true });
+    }
+
+    injectSysConfigCardIfNeeded();
+
+    if (typeof google !== 'undefined' && google.script && google.script.run) {
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (res && res.success && res.config) {
+            CURRENT_SYS_HEADER_CONFIG = res.config;
+            populateSysConfigInputs(res.config);
+            updateDynamicHeaderTexts(res.config);
+          }
+        })
+        .loadSystemHeaderConfig();
+    }
+  });
+</script>
