@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>ระบบการจัดทำโครงงานอาชีพ ง30202</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+  <!-- ตัวเชื่อม API สำหรับรันบน GitHub Pages (ต้องโหลดก่อนสคริปต์อื่นทั้งหมด) -->
+  <script src="./api-bridge.js"></script>
+
+  <style>
+    body {
+      font-family: 'Sarabun', sans-serif;
+      background-color: #eef3f1;
+      color: #2c3e50;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .main-card {
+      max-width: 1050px;
+      margin: 20px auto;
+      border-radius: 18px;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.08);
+      border: none;
+      background: #ffffff;
+    }
+    .school-logo {
+      width: 110px;
+      height: auto;
+      display: block;
+      margin: 0 auto 12px auto;
+    }
+    .header-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #1b5e20;
+      line-height: 1.6;
+    }
+    .form-control, .form-select {
+      font-size: 16px !important;
+      min-height: 46px;
+      border-radius: 10px;
+      padding: 10px 14px;
+    }
+    textarea.form-control {
+      line-height: 1.6;
+    }
+    .btn-lg-ipad {
+      min-height: 50px;
+      padding: 12px 22px;
+      font-size: 1.08rem;
+      border-radius: 12px;
+      font-weight: 600;
+    }
+    .btn-touch {
+      min-height: 42px;
+      padding: 8px 16px;
+      font-size: 0.98rem;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+    .info-box {
+      background-color: #e8f5e9;
+      border-left: 5px solid #2e7d32;
+      padding: 16px;
+      border-radius: 10px;
+    }
+    .project-card {
+      border-left: 4px solid #198754;
+      border-radius: 12px;
+    }
+    .hidden {
+      display: none !important;
+    }
+  </style>
+
+  <script>
+    var currentStudent = null;
+    var currentGroup = null;
+    var isAdminMode = false;
+
+    function showAlert(message, type) {
+      type = type || 'danger';
+      var box = document.getElementById('alertBox');
+      if (!box) {
+        alert(message);
+        return;
+      }
+      box.className = 'alert alert-' + type;
+      box.innerText = message;
+      box.classList.remove('hidden');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function hideAlert() {
+      var box = document.getElementById('alertBox');
+      if (box) box.classList.add('hidden');
+    }
+
+    function hideAllMainSections() {
+      var sectionIds = ['loginSection', 'allProjectsSection', 'dashboardSection', 'workspaceSection'];
+      sectionIds.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+      });
+      if (typeof destroyTeacherView === 'function') {
+        destroyTeacherView();
+      } else {
+        var mount = document.getElementById('teacherActiveMount');
+        if (mount) mount.innerHTML = '';
+      }
+    }
+
+    function showSpecificSection(sectionId) {
+      hideAllMainSections();
+      var target = document.getElementById(sectionId);
+      if (target) {
+        target.classList.remove('hidden');
+      }
+    }
+
+    function resetGroupForms() {
+      var cBox = document.getElementById('createGroupBox');
+      var jBox = document.getElementById('joinGroupBox');
+      if (cBox) cBox.classList.add('hidden');
+      if (jBox) jBox.classList.add('hidden');
+
+      var ids = ['newGroupName', 'newGroupPass', 'joinGroupName', 'joinGroupPass', 'addMemberIdInput'];
+      ids.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+    }
+
+    function handleLogin() {
+      try {
+        hideAlert();
+        var userEl = document.getElementById('usernameInput');
+        var passEl = document.getElementById('passwordInput');
+        var user = userEl ? userEl.value.trim() : '';
+        var pass = passEl ? passEl.value.trim() : '';
+
+        if (!user || !pass) {
+          showAlert('กรุณากรอกชื่อผู้ใช้และรหัสผ่านให้ครบถ้วน', 'danger');
+          return;
+        }
+
+        var btn = document.getElementById('loginBtn');
+        if (btn) {
+          btn.disabled = true;
+          btn.innerText = 'กำลังตรวจสอบข้อมูล...';
+        }
+
+        google.script.run
+          .withSuccessHandler(function(res) {
+            if (btn) {
+              btn.disabled = false;
+              btn.innerText = 'เข้าสู่ระบบ';
+            }
+            if (res && res.success) {
+              isAdminMode = Boolean(res.isAdmin);
+              currentStudent = res.student;
+              currentGroup = res.group;
+              resetGroupForms();
+              renderDashboard(res.student, res.group);
+            } else {
+              showAlert((res && res.message) ? res.message : 'ไม่สามารถเข้าสู่ระบบได้', 'danger');
+            }
+          })
+          .withFailureHandler(function(err) {
+            if (btn) {
+              btn.disabled = false;
+              btn.innerText = 'เข้าสู่ระบบ';
+            }
+            showAlert('เกิดข้อผิดพลาดในการเชื่อมต่อระบบ: ' + (err.message || err), 'danger');
+          })
+          .loginStudent(user, pass);
+      } catch (e) {
+        showAlert('เกิดข้อผิดพลาด: ' + e.message, 'danger');
+      }
+    }
+
+    function renderDashboard(student, group) {
+      currentGroup = group;
+      showSpecificSection('dashboardSection');
+
+      var adminBanner = document.getElementById('adminModeBanner');
+      if (adminBanner) adminBanner.classList.toggle('hidden', !isAdminMode);
+
+      document.getElementById('stName').innerText = student.fullName || '-';
+      document.getElementById('stId').innerText = student.studentId || '-';
+      document.getElementById('stRoom').innerText = student.room || '-';
+      document.getElementById('stNo').innerText = student.number || '-';
+
+      if (!group) {
+        resetGroupForms();
+        document.getElementById('noGroupArea').classList.remove('hidden');
+        document.getElementById('hasGroupArea').classList.add('hidden');
+      } else {
+        document.getElementById('noGroupArea').classList.add('hidden');
+        document.getElementById('hasGroupArea').classList.remove('hidden');
+        renderGroupDetails(group);
+      }
+    }
+
+    function renderGroupDetails(group) {
+      var step1Title = (group.progress && group.progress.steps && group.progress.steps[1] && group.progress.steps[1].data && group.progress.steps[1].data.projectTitle)
+        ? group.progress.steps[1].data.projectTitle
+        : group.projectTitle;
+
+      document.getElementById('dispGroupName').innerText = 'กลุ่ม: ' + (group.groupName || '-');
+      document.getElementById('dispProjectTitle').innerText = step1Title ? step1Title : '(ยังไม่ได้ระบุชื่อโครงงาน)';
+      document.getElementById('dispGroupPass').innerText = group.groupPass || '-';
+      document.getElementById('dispRoleBadge').innerText = isAdminMode ? 'ผู้พัฒนาระบบ (Admin)' : (group.isLeader ? 'หัวหน้ากลุ่ม' : 'สมาชิกกลุ่ม');
+      document.getElementById('memberCount').innerText = group.members ? group.members.length : 0;
+
+      var actionHeader = document.getElementById('actionColHeader');
+      if (group.isLeader && !isAdminMode) actionHeader.classList.remove('hidden');
+      else actionHeader.classList.add('hidden');
+
+      var tbody = document.getElementById('memberTableBody');
+      tbody.innerHTML = '';
+
+      (group.members || []).forEach(function(m, idx) {
+        var isMemberLeader = (m.studentId === group.leaderId);
+        var leaderTag = isMemberLeader ? ' <span class="badge bg-success">หัวหน้า</span>' : '';
+        var actionCell = '';
+        if (group.isLeader && !isAdminMode) {
+          actionCell = isMemberLeader
+            ? '<td class="text-center text-muted small">-</td>'
+            : '<td class="text-center"><button type="button" class="btn btn-outline-danger btn-sm px-3 py-1" onclick="submitRemoveMember(\'' + m.studentId + '\', \'' + m.fullName + '\')">ลบ</button></td>';
+        }
+        tbody.insertAdjacentHTML('beforeend',
+          '<tr>' +
+            '<td class="text-center">' + (idx + 1) + '</td>' +
+            '<td>' + m.studentId + '</td>' +
+            '<td>' + m.fullName + leaderTag + '</td>' +
+            '<td class="text-center">ห้อง ' + m.room + ' เลขที่ ' + m.number + '</td>' +
+            actionCell +
+          '</tr>'
+        );
+      });
+
+      var addBox = document.getElementById('leaderAddMemberBox');
+      if (group.isLeader && (group.members || []).length < 5 && !isAdminMode) addBox.classList.remove('hidden');
+      else addBox.classList.add('hidden');
+    }
+
+    function handleStartProject() {
+      try {
+        hideAlert();
+        var wsEl = document.getElementById('workspaceSection');
+        if (!wsEl) {
+          showAlert('ไม่พบหน้าต่าง Workspace.html กรุณาตรวจสอบไฟล์ในระบบ', 'danger');
+          return;
+        }
+        if (typeof openWorkspaceView === 'function') {
+          showSpecificSection('workspaceSection');
+          openWorkspaceView();
+        }
+      } catch (err) {
+        showAlert('เกิดข้อผิดพลาดขณะเปิดหน้าเริ่มดำเนินการ: ' + err.message, 'danger');
+      }
+    }
+
+    function openTeacherViewFromAdmin() {
+      if (!isAdminMode) {
+        showAlert('เฉพาะครูผู้สอน (Admin) เท่านั้นที่สามารถเข้าใช้งานส่วนนี้ได้', 'danger');
+        return;
+      }
+      hideAlert();
+      hideAllMainSections();
+      if (typeof mountTeacherView === 'function') {
+        mountTeacherView();
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function backFromTeacherToDashboard() {
+      hideAlert();
+      renderDashboard(currentStudent, currentGroup);
+    }
+
+    function showCreateGroupForm() {
+      hideAlert();
+      document.getElementById('createGroupBox').classList.remove('hidden');
+      document.getElementById('joinGroupBox').classList.add('hidden');
+    }
+
+    function showJoinGroupForm() {
+      hideAlert();
+      document.getElementById('joinGroupBox').classList.remove('hidden');
+      document.getElementById('createGroupBox').classList.add('hidden');
+    }
+
+    function submitCreateGroup() {
+      hideAlert();
+      var gName = document.getElementById('newGroupName').value.trim();
+      var gPass = document.getElementById('newGroupPass').value.trim();
+      if (!gName || !gPass) return showAlert('กรุณากรอกชื่อกลุ่มและตั้งรหัสผ่านกลุ่มให้ครบถ้วน');
+
+      var btn = document.getElementById('createGroupBtn');
+      btn.disabled = true;
+      google.script.run.withSuccessHandler(function(res) {
+        btn.disabled = false;
+        if (res.success) {
+          resetGroupForms();
+          showAlert(res.message, 'success');
+          renderDashboard(currentStudent, res.group);
+        } else showAlert(res.message, 'danger');
+      }).withFailureHandler(function(err) {
+        btn.disabled = false;
+        showAlert('เกิดข้อผิดพลาด: ' + err.message, 'danger');
+      }).createNewGroup(currentStudent.studentId, gName, gPass);
+    }
+
+    function submitAddMember() {
+      hideAlert();
+      var targetId = document.getElementById('addMemberIdInput').value.trim();
+      if (!targetId) return showAlert('กรุณากรอกเลขประจำตัวนักเรียนที่ต้องการเพิ่ม');
+
+      var btn = document.getElementById('addMemberBtn');
+      btn.disabled = true;
+      google.script.run.withSuccessHandler(function(res) {
+        btn.disabled = false;
+        if (res.success) {
+          document.getElementById('addMemberIdInput').value = '';
+          showAlert(res.message, 'success');
+          currentGroup = res.group;
+          renderGroupDetails(res.group);
+        } else showAlert(res.message, 'danger');
+      }).withFailureHandler(function(err) {
+        btn.disabled = false;
+        showAlert('เกิดข้อผิดพลาด: ' + err.message, 'danger');
+      }).addMemberByStudentId(currentStudent.studentId, targetId);
+    }
+
+    function submitRemoveMember(targetStudentId, targetName) {
+      if (!confirm('คุณต้องการลบ "' + targetName + '" ออกจากกลุ่มใช่หรือไม่?')) return;
+      hideAlert();
+      google.script.run.withSuccessHandler(function(res) {
+        if (res.success) {
+          showAlert(res.message, 'warning');
+          currentGroup = res.group;
+          renderGroupDetails(res.group);
+        } else showAlert(res.message, 'danger');
+      }).removeMemberFromGroup(currentStudent.studentId, targetStudentId);
+    }
+
+    function submitJoinGroup() {
+      hideAlert();
+      var gName = document.getElementById('joinGroupName').value.trim();
+      var gPass = document.getElementById('joinGroupPass').value.trim();
+      if (!gName || !gPass) return showAlert('กรุณากรอกชื่อกลุ่มและรหัสผ่านกลุ่มให้ครบถ้วน');
+
+      var btn = document.getElementById('joinGroupBtn');
+      btn.disabled = true;
+      google.script.run.withSuccessHandler(function(res) {
+        btn.disabled = false;
+        if (res.success) {
+          resetGroupForms();
+          showAlert(res.message, 'success');
+          renderDashboard(currentStudent, res.group);
+        } else showAlert(res.message, 'danger');
+      }).withFailureHandler(function(err) {
+        btn.disabled = false;
+        showAlert('เกิดข้อผิดพลาด: ' + err.message, 'danger');
+      }).joinExistingGroup(currentStudent.studentId, gName, gPass);
+    }
+
+    function openAllProjectsSection() {
+      hideAlert();
+      var btn = document.getElementById('viewAllBtn');
+      btn.disabled = true;
+      btn.innerText = 'กำลังโหลดข้อมูล...';
+
+      google.script.run.withSuccessHandler(function(res) {
+        btn.disabled = false;
+        btn.innerText = '📋 โครงงานอาชีพ ทั้งหมด';
+        if (res.success) {
+          showSpecificSection('allProjectsSection');
+          renderAllProjectsList(res.groups);
+        } else showAlert(res.message, 'danger');
+      }).withFailureHandler(function(err) {
+        btn.disabled = false;
+        btn.innerText = '📋 โครงงานอาชีพ ทั้งหมด';
+        showAlert('เกิดข้อผิดพลาด: ' + err.message, 'danger');
+      }).getAllGroupsInfo();
+    }
+
+    function renderAllProjectsList(groups) {
+      var container = document.getElementById('allProjectsContainer');
+      container.innerHTML = '';
+      if (!groups || groups.length === 0) {
+        container.innerHTML = '<div class="alert alert-secondary text-center">ยังไม่มีกลุ่มที่ถูกสร้างในระบบ</div>';
+        return;
+      }
+      groups.forEach(function(g) {
+        var memberRows = (g.members || []).map(function(m, i) {
+          var badge = m.isLeader ? ' <span class="badge bg-success">หัวหน้ากลุ่ม</span>' : '';
+          return '<li>' + (i + 1) + '. ' + m.fullName + ' (ชั้น/ห้อง: ' + m.room + ' | เลขที่: ' + m.number + ')' + badge + '</li>';
+        }).join('');
+        container.insertAdjacentHTML('beforeend',
+          '<div class="card project-card bg-light mb-3 shadow-sm">' +
+            '<div class="card-body">' +
+              '<h6 class="fw-bold text-success mb-1">1) ชื่อกลุ่ม: ' + g.groupName + '</h6>' +
+              '<p class="mb-2"><strong>2) ชื่อโครงงาน:</strong> ' + (g.projectTitle ? g.projectTitle : '<span class="text-muted">-</span>') + '</p>' +
+              '<div>' +
+                '<strong>3) รายชื่อสมาชิกในกลุ่ม (' + (g.members || []).length + '/5 คน):</strong>' +
+                '<ul class="list-unstyled ms-3 mt-1 mb-0 small">' + memberRows + '</ul>' +
+              '</div>' +
+            '</div>' +
+          '</div>'
+        );
+      });
+    }
+
+    function closeAllProjectsSection() {
+      hideAlert();
+      showSpecificSection('loginSection');
+    }
+
+    function handleLogout() {
+      currentStudent = null;
+      currentGroup = null;
+      isAdminMode = false;
+      hideAlert();
+      resetGroupForms();
+      var passEl = document.getElementById('passwordInput');
+      if (passEl) passEl.value = '';
+      showSpecificSection('loginSection');
+    }
+  </script>
+</head>
+<body>
+
+<div class="container px-2 px-md-3">
+  <div class="card main-card p-3 p-md-5">
+
+    <!-- ส่วนหัวเว็บ: ตราโรงเรียน และ ชื่อระบบ -->
+    <div class="text-center mb-3">
+      <img src="https://i.ibb.co/FqhdPDpB/logo.png" alt="ตราโรงเรียนวาปีปทุม" class="school-logo">
+      <div class="header-title">
+        ระบบการจัดทำโครงงานอาชีพ<br>
+        รายวิชา โครงงานอาชีพ รหัสวิชา ง30202<br>
+        ภาคเรียนที่ 2 ปีการศึกษา 2569<br>
+        <span class="text-secondary fs-6">ครูผู้สอน นายธนโชติ จันทรังษี</span>
+      </div>
+    </div>
+
+    <hr class="mb-4">
+
+    <div id="appInitLoading" class="alert alert-info text-center py-2 small">
+      ⏳ กำลังเตรียมองค์ประกอบหน้าเว็บ...
+    </div>
+
+    <div id="alertBox" class="alert hidden" role="alert"></div>
+
+    <!-- หน้าจอที่ 1: ยืนยันตัวตนเข้าสู่ระบบ -->
+    <div id="loginSection">
+      <h5 class="text-center fw-bold mb-3">เข้าสู่ระบบสำหรับนักเรียน</h5>
+      <div class="mb-3">
+        <label class="form-label fw-semibold">ชื่อผู้ใช้ (เลขประจำตัวนักเรียน 5 หลัก)</label>
+        <input type="text" id="usernameInput" class="form-control" placeholder="เช่น 10000"
+               onkeydown="if(event.key === 'Enter') handleLogin();">
+      </div>
+      <div class="mb-4">
+        <label class="form-label fw-semibold">รหัสผ่าน</label>
+        <input type="password" id="passwordInput" class="form-control" placeholder="เลขประจำตัว + ห้อง 2 หลัก + เลขที่ 2 หลัก"
+               onkeydown="if(event.key === 'Enter') handleLogin();">
+        <div class="form-text text-muted mt-1">
+          * ตัวอย่าง: เลขประจำตัว 10000 ห้อง 3 เลขที่ 3 รหัสผ่านคือ <b>100000303</b>
+        </div>
+      </div>
+      <button type="button" id="loginBtn" class="btn btn-success w-100 btn-lg-ipad mb-3" onclick="handleLogin()">
+        เข้าสู่ระบบ
+      </button>
+
+      <button type="button" id="viewAllBtn" class="btn btn-outline-primary w-100 btn-lg-ipad" onclick="openAllProjectsSection()">
+        📋 โครงงานอาชีพ ทั้งหมด
+      </button>
+    </div>
+
+    <!-- หน้าจอที่ 1.5: แสดงรายการโครงงานอาชีพทั้งหมด -->
+    <div id="allProjectsSection" class="hidden">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="fw-bold m-0 text-primary">📋 โครงงานอาชีพ ทั้งหมด</h5>
+        <button type="button" class="btn btn-secondary btn-touch" onclick="closeAllProjectsSection()">
+          ← กลับหน้าเข้าสู่ระบบ
+        </button>
+      </div>
+      <div id="allProjectsContainer"></div>
+    </div>
+
+    <!-- หน้าจอที่ 2: ข้อมูลนักเรียน & ระบบกลุ่ม -->
+    <div id="dashboardSection" class="hidden">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="fw-bold m-0 text-success">ข้อมูลนักเรียน</h5>
+        <button type="button" class="btn btn-outline-danger btn-touch" onclick="handleLogout()">ออกจากระบบ</button>
+      </div>
+
+      <!-- แสดงเฉพาะเมื่อล็อกอินด้วยรหัส admin เท่านั้น -->
+      <div id="adminModeBanner" class="alert alert-primary hidden mb-4 p-3 shadow-sm">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <div>
+            <h6 class="fw-bold m-0 text-primary">🛠️ โหมดครูผู้สอนและผู้พัฒนาระบบ (Admin Mode)</h6>
+            <small class="text-dark">กดปุ่มด้านขวาเพื่อเปิดหน้าต่างตรวจอนุมัติและประเมินคะแนน หรือกดปุ่มเริ่มดำเนินการด้านล่างเพื่อทดสอบปุ่มที่ 1–8</small>
+          </div>
+          <button type="button" class="btn btn-primary btn-touch fw-bold shadow-sm" onclick="openTeacherViewFromAdmin()">
+            👨‍🏫 เปิดหน้าต่างสำหรับครูผู้สอน (ตรวจอนุมัติ & ประเมินคะแนน)
+          </button>
+        </div>
+      </div>
+
+      <div class="info-box mb-4">
+        <div class="row g-2">
+          <div class="col-12 col-sm-6"><strong>ชื่อ-สกุล:</strong> <span id="stName">-</span></div>
+          <div class="col-12 col-sm-6"><strong>เลขประจำตัวนักเรียน:</strong> <span id="stId">-</span></div>
+          <div class="col-6"><strong>ชั้น/ห้อง:</strong> <span id="stRoom">-</span></div>
+          <div class="col-6"><strong>เลขที่:</strong> <span id="stNo">-</span></div>
+        </div>
+      </div>
+
+      <div id="noGroupArea" class="hidden">
+        <div class="text-center mb-3">
+          <p class="text-muted mb-2">คุณยังไม่ได้สังกัดกลุ่มโครงงาน กรุณาเลือกรายการด้านล่าง (เฉพาะนักเรียนห้องเดียวกันเท่านั้น)</p>
+          <div class="row g-3">
+            <div class="col-6">
+              <button type="button" class="btn btn-primary w-100 btn-lg-ipad" onclick="showCreateGroupForm()">+ สร้างกลุ่ม</button>
+            </div>
+            <div class="col-6">
+              <button type="button" class="btn btn-warning w-100 btn-lg-ipad" onclick="showJoinGroupForm()">เข้าร่วมกลุ่ม</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="createGroupBox" class="card p-3 bg-light border-0 mt-3 hidden">
+          <h6 class="fw-bold text-primary mb-3">สร้างกลุ่มใหม่ (คุณจะเป็นหัวหน้ากลุ่ม)</h6>
+          <div class="mb-3">
+            <label class="form-label">1) ชื่อกลุ่ม</label>
+            <input type="text" id="newGroupName" class="form-control" placeholder="ระบุชื่อกลุ่ม">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">2) ตั้งรหัสผ่านกลุ่ม</label>
+            <input type="text" id="newGroupPass" class="form-control" placeholder="ตั้งรหัสผ่านกลุ่ม">
+          </div>
+          <button type="button" id="createGroupBtn" class="btn btn-primary w-100 btn-lg-ipad" onclick="submitCreateGroup()">ยืนยันการสร้างกลุ่ม</button>
+        </div>
+
+        <div id="joinGroupBox" class="card p-3 bg-light border-0 mt-3 hidden">
+          <h6 class="fw-bold text-warning-emphasis mb-3">เข้าร่วมกลุ่มที่มีอยู่แล้ว (เฉพาะห้องเดียวกัน)</h6>
+          <div class="mb-3">
+            <label class="form-label">1) ชื่อกลุ่มที่ต้องการเข้าร่วม</label>
+            <input type="text" id="joinGroupName" class="form-control" placeholder="กรอกชื่อกลุ่มให้ถูกต้อง">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">2) รหัสผ่านกลุ่ม</label>
+            <input type="text" id="joinGroupPass" class="form-control" placeholder="กรอกรหัสผ่านกลุ่ม">
+          </div>
+          <button type="button" id="joinGroupBtn" class="btn btn-warning w-100 btn-lg-ipad fw-bold" onclick="submitJoinGroup()">ยืนยันการเข้าร่วมกลุ่ม</button>
+        </div>
+      </div>
+
+      <div id="hasGroupArea" class="hidden">
+        <div class="card border-success mb-4">
+          <div class="card-header bg-success text-white d-flex justify-content-between align-items-center py-3">
+            <span class="fw-bold fs-6" id="dispGroupName">ชื่อกลุ่ม: -</span>
+            <span class="badge bg-light text-dark" id="dispRoleBadge">สมาชิก</span>
+          </div>
+          <div class="card-body">
+            <p class="mb-1 text-muted">ชื่อโครงงาน: <strong id="dispProjectTitle" class="text-dark">-</strong></p>
+            <p class="mb-2 text-muted">รหัสผ่านประจำกลุ่ม: <strong id="dispGroupPass" class="text-dark">-</strong></p>
+
+            <h6 class="fw-bold mt-3 mb-2">รายชื่อสมาชิกในกลุ่ม (<span id="memberCount">0</span>/5 คน):</h6>
+            <div class="table-responsive">
+              <table class="table table-bordered align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th class="text-center" style="width: 10%;">ลำดับ</th>
+                    <th style="width: 22%;">เลขประจำตัว</th>
+                    <th>ชื่อ-สกุล</th>
+                    <th class="text-center" style="width: 22%;">ชั้น/ห้อง - เลขที่</th>
+                    <th id="actionColHeader" class="text-center hidden" style="width: 15%;">จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody id="memberTableBody"></tbody>
+              </table>
+            </div>
+
+            <div id="leaderAddMemberBox" class="mt-4 pt-3 border-top hidden">
+              <label class="form-label fw-bold text-primary">เพิ่มสมาชิกเข้ากลุ่ม (เฉพาะนักเรียนห้องเดียวกันเท่านั้น)</label>
+              <div class="input-group">
+                <input type="text" id="addMemberIdInput" class="form-control" placeholder="กรอกเลขประจำตัวนักเรียน (คอลัมน์ C)" inputmode="numeric">
+                <button type="button" id="addMemberBtn" class="btn btn-primary fw-bold px-4" onclick="submitAddMember()">+ เพิ่มสมาชิก</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button type="button" id="startWorkBtn" class="btn btn-success w-100 btn-lg-ipad shadow-sm" onclick="handleStartProject()">
+          🚀 เริ่มดำเนินการ
+        </button>
+      </div>
+    </div>
+
+    <!-- จุดติดตั้งไฟล์ย่อยอัตโนมัติ (Workspace.html และ Teacher.html + ExportGrade + SystemConfig) -->
+    <div id="workspaceMountPoint"></div>
+    <div id="teacherMountPoint"></div>
+
+  </div>
+</div>
+
+<!-- ตัวโหลดไฟล์ HTML ย่อยทั้งหมด -->
+<script src="./app-loader.js"></script>
+
+</body>
+</html>
